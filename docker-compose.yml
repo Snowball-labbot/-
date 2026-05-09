@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: asset_manager
+      POSTGRES_USER: asset_user
+      POSTGRES_PASSWORD: asset_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asset_user -d asset_manager"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://asset_user:asset_pass@postgres:5432/asset_manager
+      SESSION_SECRET: change-this-local-secret
+      APP_ORIGIN: http://localhost:5173
+      MARKET_REFRESH_ENABLED: "true"
+      MARKET_REFRESH_INTERVAL_SECONDS: "21600"
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4.1-mini}
+      AI_VISION_MODEL: ${AI_VISION_MODEL:-gpt-4.1-mini}
+      AI_API_KEY: ${AI_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
