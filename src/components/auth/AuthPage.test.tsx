@@ -1,115 +1,106 @@
-
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
-import AuthPage from './AuthPage';
 
-const authStoreMocks = vi.hoisted(() => ({
-  login: vi.fn(),
-  register: vi.fn(),
-}));
+const fetchMock = vi.hoisted(() => vi.fn());
 
-// Extend expect with jest-dom matchers
+const text = {
+  loginTitle: '\u767b\u5f55\u8d26\u6237',
+  registerTitle: '\u9080\u8bf7\u6ce8\u518c',
+  email: '\u90ae\u7bb1\u5730\u5740',
+  password: '\u5bc6\u7801 (\u81f3\u5c118\u4f4d)',
+  confirmPassword: '\u786e\u8ba4\u5bc6\u7801',
+  inviteCode: '\u9080\u8bf7\u7801',
+  registerButton: '\u6ce8\u518c\u5e76\u767b\u5f55',
+  loginButton: '\u767b\u5f55',
+  switchToRegister: '\u6709\u9080\u8bf7\u7801? \u521b\u5efa\u8d26\u6237',
+  passwordMismatch: '\u4e24\u6b21\u8f93\u5165\u7684\u5bc6\u7801\u4e0d\u4e00\u81f4',
+};
+
 expect.extend(matchers);
 
-vi.mock('@/store/useAuthStore', () => ({
-  useAuthStore: () => ({
-    login: authStoreMocks.login,
-    register: authStoreMocks.register,
-  }),
-}));
+async function renderAuthPage() {
+  const { default: AuthPage } = await import('./AuthPage');
+  return render(<AuthPage />);
+}
 
 describe('AuthPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'user-1', email: 'test@example.com', role: 'user' }),
+    });
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
-  it('renders login form by default', () => {
-    render(<AuthPage />);
-    const loginTitle = screen.getAllByText('登录账户');
-    expect(loginTitle[0]).toBeInTheDocument();
-    
-    const emailInputs = screen.getAllByPlaceholderText('邮箱地址');
-    expect(emailInputs[0]).toBeInTheDocument();
+  it('renders login form by default', async () => {
+    await renderAuthPage();
+
+    expect(screen.getByRole('heading', { name: text.loginTitle })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(text.email)).toBeInTheDocument();
   });
 
-  it('switches to register form', () => {
-    render(<AuthPage />);
-    const toggleButtons = screen.getAllByText('有邀请码? 创建账户');
-    fireEvent.click(toggleButtons[0]);
-    
-    expect(screen.getAllByText('邀请注册')[0]).toBeInTheDocument();
-    expect(screen.getAllByPlaceholderText('确认密码')[0]).toBeInTheDocument();
+  it('switches to register form', async () => {
+    await renderAuthPage();
+
+    fireEvent.click(screen.getByRole('button', { name: text.switchToRegister }));
+
+    expect(screen.getByRole('heading', { name: text.registerTitle })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(text.confirmPassword)).toBeInTheDocument();
   });
 
   it('validates password match during registration', async () => {
-    render(<AuthPage />);
-    const toggleButtons = screen.getAllByText('有邀请码? 创建账户');
-    fireEvent.click(toggleButtons[0]);
+    await renderAuthPage();
+    fireEvent.click(screen.getByRole('button', { name: text.switchToRegister }));
 
-    const emailInputs = screen.getAllByPlaceholderText('邮箱地址');
-    const pwdInputs = screen.getAllByPlaceholderText('密码 (至少8位)');
-    const confirmInputs = screen.getAllByPlaceholderText('确认密码');
-    const inviteInputs = screen.getAllByPlaceholderText('邀请码');
-    
-    fireEvent.change(emailInputs[0], { target: { value: 'test@example.com' } });
-    fireEvent.change(pwdInputs[0], { target: { value: 'password123' } });
-    fireEvent.change(confirmInputs[0], { target: { value: 'password456' } });
-    fireEvent.change(inviteInputs[0], { target: { value: 'INVITE123' } });
+    fireEvent.change(screen.getByPlaceholderText(text.email), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText(text.password), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByPlaceholderText(text.confirmPassword), { target: { value: 'password456' } });
+    fireEvent.change(screen.getByPlaceholderText(text.inviteCode), { target: { value: 'INVITE123' } });
+    fireEvent.click(screen.getByRole('button', { name: text.registerButton }));
 
-    const submitButtons = screen.getAllByRole('button', { name: '注册并登录' });
-    fireEvent.click(submitButtons[0]);
-
-    expect(await screen.findByText('两次输入的密码不一致')).toBeInTheDocument();
-    expect(authStoreMocks.register).not.toHaveBeenCalled();
+    expect(await screen.findByText(text.passwordMismatch)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('calls register when form is valid', async () => {
-    authStoreMocks.register.mockResolvedValue(undefined);
+    await renderAuthPage();
+    fireEvent.click(screen.getByRole('button', { name: text.switchToRegister }));
 
-    render(<AuthPage />);
-    const toggleButtons = screen.getAllByText('有邀请码? 创建账户');
-    fireEvent.click(toggleButtons[0]);
-
-    const emailInputs = screen.getAllByPlaceholderText('邮箱地址');
-    const pwdInputs = screen.getAllByPlaceholderText('密码 (至少8位)');
-    const confirmInputs = screen.getAllByPlaceholderText('确认密码');
-    const inviteInputs = screen.getAllByPlaceholderText('邀请码');
-
-    fireEvent.change(emailInputs[0], { target: { value: 'test@example.com' } });
-    fireEvent.change(pwdInputs[0], { target: { value: 'password123' } });
-    fireEvent.change(confirmInputs[0], { target: { value: 'password123' } });
-    fireEvent.change(inviteInputs[0], { target: { value: 'INVITE123' } });
-
-    const submitButtons = screen.getAllByRole('button', { name: '注册并登录' });
-    fireEvent.click(submitButtons[0]);
+    fireEvent.change(screen.getByPlaceholderText(text.email), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText(text.password), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByPlaceholderText(text.confirmPassword), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByPlaceholderText(text.inviteCode), { target: { value: 'INVITE123' } });
+    fireEvent.click(screen.getByRole('button', { name: text.registerButton }));
 
     await waitFor(() => {
-      expect(authStoreMocks.register).toHaveBeenCalledWith('test@example.com', 'password123', 'INVITE123');
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/register', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ email: 'test@example.com', password: 'password123', invite_code: 'INVITE123' }),
+      }));
     });
   });
 
   it('calls login when login form is submitted', async () => {
-    authStoreMocks.login.mockResolvedValue(undefined);
+    await renderAuthPage();
 
-    render(<AuthPage />);
-
-    const emailInputs = screen.getAllByPlaceholderText('邮箱地址');
-    const pwdInputs = screen.getAllByPlaceholderText('密码 (至少8位)');
-
-    fireEvent.change(emailInputs[0], { target: { value: 'test@example.com' } });
-    fireEvent.change(pwdInputs[0], { target: { value: 'password123' } });
-
-    const submitButtons = screen.getAllByRole('button', { name: '登录' });
-    fireEvent.click(submitButtons[0]);
+    fireEvent.change(screen.getByPlaceholderText(text.email), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText(text.password), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: text.loginButton }));
 
     await waitFor(() => {
-      expect(authStoreMocks.login).toHaveBeenCalledWith('test@example.com', 'password123');
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ email: 'test@example.com', password: 'password123' }),
+      }));
     });
   });
 });

@@ -104,10 +104,6 @@ export interface TrendPoint {
   value_cny: number;
 }
 
-export interface ImportResult {
-  imported: number;
-}
-
 export interface PortfolioBackupTransaction {
   type: TransactionItem['type'];
   trade_date?: string | null;

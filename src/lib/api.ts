@@ -4,7 +4,6 @@ import type {
   HoldingCreateInput,
   HoldingUpdateInput,
   HoldingsImageExtractResponse,
-  ImportResult,
   ImportExtractedHoldingsResult,
   MarketInstrument,
   MarketQuote,
@@ -104,10 +103,6 @@ export const api = {
   summary: () => request<Summary>('/api/analytics/summary'),
   trend: (range: 'week' | 'month' | 'year') => request<TrendPoint[]>(`/api/analytics/trend?range=${range}`),
   holdingTrend: (holdingId: string, range: 'week' | 'month' | 'year') => request<TrendPoint[]>(`/api/holdings/${holdingId}/trend?range=${range}`),
-  importLocalStorage: (assets: unknown[]) => request<ImportResult>('/api/import/local-storage', {
-    method: 'POST',
-    body: { assets },
-  }),
   exportPortfolio: () => request<PortfolioBackupFile>('/api/portfolio/export'),
   importPortfolio: (payload: PortfolioBackupFile) => request<PortfolioImportResult>('/api/portfolio/import', {
     method: 'POST',

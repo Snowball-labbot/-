@@ -2,6 +2,29 @@ import React, { useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Mail, Lock, Ticket, AlertCircle, Eye, EyeOff, CheckCircle, Loader2 } from 'lucide-react';
 
+const text = {
+  loginTitle: '\u767b\u5f55\u8d26\u6237',
+  registerTitle: '\u9080\u8bf7\u6ce8\u518c',
+  loginSubtitle: '\u6b22\u8fce\u56de\u6765\uff0c\u8bf7\u767b\u5f55\u4ee5\u7ba1\u7406\u60a8\u7684\u8d44\u4ea7',
+  registerSubtitle: '\u8f93\u5165\u7ba1\u7406\u5458\u53d1\u653e\u7684\u9080\u8bf7\u7801\u521b\u5efa\u8d26\u6237',
+  email: '\u90ae\u7bb1\u5730\u5740',
+  password: '\u5bc6\u7801 (\u81f3\u5c118\u4f4d)',
+  confirmPassword: '\u786e\u8ba4\u5bc6\u7801',
+  inviteCode: '\u9080\u8bf7\u7801',
+  passwordMismatch: '\u4e24\u6b21\u8f93\u5165\u7684\u5bc6\u7801\u4e0d\u4e00\u81f4',
+  passwordTooShort: '\u5bc6\u7801\u957f\u5ea6\u81f3\u5c11\u9700\u89818\u4f4d',
+  inviteRequired: '\u8bf7\u8f93\u5165\u9080\u8bf7\u7801',
+  registerSuccess: '\u6ce8\u518c\u6210\u529f\uff0c\u5df2\u4e3a\u60a8\u767b\u5f55\u3002',
+  unknownError: '\u53d1\u751f\u672a\u77e5\u9519\u8bef',
+  resetHint: '\u7b2c\u4e00\u7248\u6682\u4e0d\u63d0\u4f9b\u627e\u56de\u5bc6\u7801\uff0c\u8bf7\u901a\u8fc7\u7ba1\u7406\u5458\u91cd\u7f6e\u3002',
+  loginButton: '\u767b\u5f55',
+  registerButton: '\u6ce8\u518c\u5e76\u767b\u5f55',
+  showPassword: '\u663e\u793a\u5bc6\u7801',
+  hidePassword: '\u9690\u85cf\u5bc6\u7801',
+  switchToRegister: '\u6709\u9080\u8bf7\u7801? \u521b\u5efa\u8d26\u6237',
+  switchToLogin: '\u5df2\u6709\u8d26\u6237? \u7acb\u5373\u767b\u5f55',
+};
+
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -14,45 +37,50 @@ export default function AuthPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const { login, register } = useAuthStore();
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAuth = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError(null);
     setSuccessMessage(null);
-    setLoading(true);
 
+    if (!isLogin) {
+      if (password !== confirmPassword) {
+        setError(text.passwordMismatch);
+        return;
+      }
+      if (password.length < 8) {
+        setError(text.passwordTooShort);
+        return;
+      }
+      if (!inviteCode.trim()) {
+        setError(text.inviteRequired);
+        return;
+      }
+    }
+
+    setLoading(true);
     try {
       if (isLogin) {
         await login(email, password);
       } else {
-        if (password !== confirmPassword) {
-          throw new Error('两次输入的密码不一致');
-        }
-        if (password.length < 8) {
-          throw new Error('密码长度至少需要8位');
-        }
-        if (!inviteCode.trim()) {
-          throw new Error('请输入邀请码');
-        }
         await register(email, password, inviteCode.trim());
-        setSuccessMessage('注册成功，已为您登录。');
+        setSuccessMessage(text.registerSuccess);
       }
-    } catch (err: any) {
-      setError(err.message || '发生未知错误');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : text.unknownError);
     } finally {
       setLoading(false);
     }
   };
 
+  const title = isLogin ? text.loginTitle : text.registerTitle;
+  const subtitle = isLogin ? text.loginSubtitle : text.registerSubtitle;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
         <div className="text-center">
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
-            {isLogin ? '登录账户' : '邀请注册'}
-          </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            {isLogin ? '欢迎回来，请登录以管理您的资产' : '输入管理员发放的邀请码创建账户'}
-          </p>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">{title}</h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{subtitle}</p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleAuth}>
@@ -63,9 +91,9 @@ export default function AuthPage() {
                 type="email"
                 required
                 className="appearance-none relative block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="邮箱地址"
+                placeholder={text.email}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
               />
             </div>
 
@@ -74,15 +102,16 @@ export default function AuthPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
-                className="appearance-none relative block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="密码 (至少8位)"
+                className="appearance-none relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder={text.password}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
               />
               <button
                 type="button"
+                aria-label={showPassword ? text.hidePassword : text.showPassword}
                 className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() => setShowPassword((value) => !value)}
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -96,9 +125,9 @@ export default function AuthPage() {
                     type={showPassword ? 'text' : 'password'}
                     required
                     className="appearance-none relative block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                    placeholder="确认密码"
+                    placeholder={text.confirmPassword}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
                   />
                 </div>
                 <div className="relative">
@@ -106,9 +135,9 @@ export default function AuthPage() {
                   <input
                     required
                     className="appearance-none relative block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                    placeholder="邀请码"
+                    placeholder={text.inviteCode}
                     value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value)}
+                    onChange={(event) => setInviteCode(event.target.value)}
                   />
                 </div>
               </>
@@ -137,7 +166,7 @@ export default function AuthPage() {
             </div>
           )}
 
-          <p className="text-xs text-gray-500 dark:text-gray-400">第一版暂不提供找回密码，请通过管理员重置。</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{text.resetHint}</p>
 
           <button
             type="submit"
@@ -145,16 +174,16 @@ export default function AuthPage() {
             className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading && <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />}
-            {isLogin ? '登录' : '注册并登录'}
+            {isLogin ? text.loginButton : text.registerButton}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => setIsLogin((value) => !value)}
             className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
           >
-            {isLogin ? '有邀请码? 创建账户' : '已有账户? 立即登录'}
+            {isLogin ? text.switchToRegister : text.switchToLogin}
           </button>
         </div>
       </div>

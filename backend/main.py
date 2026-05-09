@@ -8,7 +8,7 @@ from .config import get_settings
 from .database import Base, engine
 from .market_refresh import market_refresh_loop
 from .migrations import ensure_lightweight_migrations
-from .routers import admin, ai, analytics, auth, holdings, import_legacy, market, portfolio_backup
+from .routers import admin, ai, analytics, auth, holdings, market, portfolio_backup
 
 
 def create_app() -> FastAPI:
@@ -29,7 +29,6 @@ def create_app() -> FastAPI:
     app.include_router(holdings.router)
     app.include_router(market.router)
     app.include_router(analytics.router)
-    app.include_router(import_legacy.router)
     app.include_router(portfolio_backup.router)
 
     @app.get("/api/health")

@@ -153,23 +153,6 @@ class TrendPoint(ApiModel):
     value_cny: Decimal
 
 
-class LocalStorageAssetIn(ApiModel):
-    id: str | None = None
-    type: str
-    amount: Decimal = Field(ge=0)
-    createdAt: datetime | None = None
-    name: str | None = None
-    group: str | None = None
-
-
-class LocalStorageImportIn(ApiModel):
-    assets: list[LocalStorageAssetIn]
-
-
-class ImportOut(ApiModel):
-    imported: int
-
-
 class PortfolioBackupTransaction(ApiModel):
     type: str
     trade_date: datetime | None = None
