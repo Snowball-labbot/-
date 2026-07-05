@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PlusCircle } from 'lucide-react';
 import { AssetItem, TransactionItem } from '@/types';
 import { useAssetStore } from '@/store/useAssetStore';
+import { getErrorMessage } from '@/lib/api';
 
 interface TransactionFormProps {
   asset: AssetItem;
@@ -44,8 +45,8 @@ export function TransactionForm({ asset }: TransactionFormProps) {
       });
       setQuantity('');
       setNote('');
-    } catch (err: any) {
-      setError(err.message || '\u4fdd\u5b58\u6d41\u6c34\u5931\u8d25');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '\u4fdd\u5b58\u6d41\u6c34\u5931\u8d25'));
     } finally {
       setSaving(false);
     }

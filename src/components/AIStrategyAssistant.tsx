@@ -1,7 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Bot, CheckCircle2, Download, FileImage, FileText, Loader2, Save, Send, Sparkles, Trash2, X } from 'lucide-react';
 import { ASSET_CONFIG } from '@/constants/assets';
-import { api } from '@/lib/api';
+import { api, getErrorMessage } from '@/lib/api';
 import { useAssetStore } from '@/store/useAssetStore';
 import { AssetType, ExtractedHolding, StrategyAdviceRequest } from '@/types';
 
@@ -502,8 +502,8 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
       ].join('');
       const assistantMessage: ChatMessage = { id: `assistant-${Date.now()}`, role: 'assistant', content: notes };
       setMessages((prev) => [...prev, assistantMessage].slice(-MAX_STORED_MESSAGES));
-    } catch (err: any) {
-      setError(err.message || TEXT.adviceError);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, TEXT.adviceError));
     } finally {
       setLoadingAdvice(false);
     }
@@ -540,8 +540,8 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setError(err.message || TEXT.adviceError);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, TEXT.adviceError));
     } finally {
       setLoadingReport(false);
     }
@@ -559,8 +559,8 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
       const rows = result.holdings.map(normalizeHolding);
       setExtractedRows(rows);
       setSelectedRows(Object.fromEntries(rows.map((_, index) => [index, true])));
-    } catch (err: any) {
-      setError(err.message || TEXT.imageError);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, TEXT.imageError));
     } finally {
       setLoadingImage(false);
       event.target.value = '';
@@ -599,22 +599,22 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
       await loadAssets();
       setExtractedRows([]);
       setSelectedRows({});
-    } catch (err: any) {
-      setError(err.message || TEXT.importError);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, TEXT.importError));
     } finally {
       setImporting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-ink-950/40 p-4 backdrop-blur-sm">
       <div
-        className="flex flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="flex flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
         style={{ width: '860px', maxWidth: 'calc(100vw - 64px)', height: '90vh', maxHeight: '900px' }}
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-ink-950 text-white">
               <Bot size={22} />
             </div>
             <div>
@@ -627,7 +627,7 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
           </button>
         </div>
 
-        <div className="flex border-b border-gray-100 px-6 pt-4">
+        <div className="custom-scrollbar flex shrink-0 overflow-x-auto border-b border-gray-100 px-4 pt-3 md:px-6 md:pt-4">
           {[
             { value: 'advice', label: TEXT.adviceTab, icon: Sparkles },
             { value: 'report', label: TEXT.reportTab, icon: FileText },
@@ -641,7 +641,7 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
                 type="button"
                 onClick={() => setTab(item.value as typeof tab)}
                 className={`mr-2 inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium ${
-                  active ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'
+                  active ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-500 hover:text-ink-800'
                 }`}
               >
                 <Icon size={16} />
@@ -651,12 +651,12 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
           })}
         </div>
 
-        <div className={`custom-scrollbar min-h-0 flex-1 p-5 ${tab === 'advice' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <div className={`custom-scrollbar min-h-0 flex-1 p-4 md:p-5 ${tab === 'advice' ? 'overflow-y-auto md:overflow-hidden' : 'overflow-y-auto'}`}>
           {error && <div className="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
 
           {tab === 'advice' ? (
-            <div className="grid h-full min-h-0 gap-5" style={{ gridTemplateColumns: '280px minmax(0, 1fr)' }}>
-              <aside className="flex min-h-0 flex-col gap-3 overflow-hidden">
+            <div className="grid min-h-0 grid-rows-[auto_minmax(360px,1fr)] gap-4 md:h-full md:grid-cols-[280px_minmax(0,1fr)] md:grid-rows-1 md:gap-5">
+              <aside className="flex min-h-0 flex-col gap-3 overflow-visible md:overflow-hidden">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <div className="text-sm text-gray-500">{TEXT.currentAssets}</div>
                   <div className="mt-1 text-2xl font-bold text-gray-950">
@@ -680,14 +680,14 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
                   type="button"
                   onClick={generateAdvice}
                   disabled={loadingAdvice}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-ink-950 px-4 py-3 text-sm font-semibold text-white hover:bg-ink-800 disabled:opacity-60"
                 >
                   {loadingAdvice ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
                   {TEXT.sendAdvice}
                 </button>
               </aside>
 
-              <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white p-5">
+              <section className="flex min-h-[360px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white p-4 md:min-h-0 md:p-5">
                 <div className="mb-3 flex justify-end">
                   <button
                     type="button"
@@ -713,7 +713,7 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
                           <div
                             className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
                               message.role === 'user'
-                                ? 'rounded-br-sm bg-blue-600 text-white'
+                                ? 'rounded-br-sm bg-brand-600 text-white'
                                 : 'rounded-bl-sm border border-gray-100 bg-white text-gray-800'
                             }`}
                           >
@@ -747,7 +747,7 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
                   type="button"
                   onClick={generateHtmlReport}
                   disabled={assets.length === 0 || loadingReport}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-md bg-ink-950 px-4 py-3 text-sm font-semibold text-white hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loadingReport ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
                   {loadingReport ? TEXT.reportGenerating : TEXT.generateReport}
@@ -830,7 +830,7 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
                     <Trash2 size={15} />
                     {TEXT.deleteSelected}
                   </button>
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-ink-950 px-4 py-3 text-sm font-semibold text-white hover:bg-ink-800">
                     {loadingImage ? <Loader2 className="animate-spin" size={16} /> : <FileImage size={16} />}
                     {TEXT.chooseImage}
                     <input type="file" accept="image/*" className="hidden" onChange={handleImage} />
@@ -903,7 +903,7 @@ export function AIStrategyAssistant({ open, onClose, selectedStrategy, allocatio
                     type="button"
                     onClick={importRows}
                     disabled={importing}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-md bg-ink-950 px-4 py-3 text-sm font-semibold text-white hover:bg-ink-800 disabled:opacity-60"
                   >
                     {importing ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                     {TEXT.confirmImport}

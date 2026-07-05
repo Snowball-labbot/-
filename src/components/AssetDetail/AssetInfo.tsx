@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { Calendar, RefreshCw, Tag, TrendingUp, Wallet } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { AssetItem } from '@/types';
 import { ASSET_CONFIG } from '@/constants/assets';
 import { useAssetStore } from '@/store/useAssetStore';
+import { formatCny, formatPercent, formatQuantity } from '@/lib/format';
 
 interface AssetInfoProps {
   asset: AssetItem;
@@ -11,7 +12,7 @@ interface AssetInfoProps {
 
 function currencySymbol(currency: string) {
   if (currency === 'USD') return '$';
-  if (currency === 'CNY') return '\u00a5';
+  if (currency === 'CNY') return '¥';
   return `${currency} `;
 }
 
@@ -23,7 +24,7 @@ export function AssetInfo({ asset }: AssetInfoProps) {
   const gainCny = Number(asset.unrealized_gain_cny || 0);
   const gainNative = Number(asset.unrealized_gain_native || 0);
   const gainPct = Number(asset.unrealized_gain_pct || 0);
-  const gainClass = gainCny > 0 ? 'text-red-500' : gainCny < 0 ? 'text-green-600' : 'text-gray-500';
+  const gainClass = gainCny > 0 ? 'text-red-600' : gainCny < 0 ? 'text-emerald-600' : 'text-ink-500';
   const nativeSymbol = currencySymbol(asset.currency);
 
   const handleRefresh = async () => {
@@ -31,118 +32,89 @@ export function AssetInfo({ asset }: AssetInfoProps) {
     setRefreshError('');
     try {
       await refreshAssetPrice(asset.id);
-    } catch (error: any) {
-      setRefreshError(error.message || '\u5237\u65b0\u4ef7\u683c\u5931\u8d25\uff0c\u53ef\u4ee5\u7a0d\u540e\u91cd\u8bd5\u3002');
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : '刷新价格失败，可以稍后重试。');
     } finally {
       setRefreshing(false);
     }
   };
 
   return (
-    <div className="rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">{asset.name || '\u672a\u547d\u540d\u8d44\u4ea7'}</h2>
-          <div className="mt-2 flex items-center gap-2">
+    <div className="overflow-hidden rounded-lg border border-ink-100 bg-white">
+      <div className="flex flex-col gap-5 border-b border-ink-100 p-5 md:flex-row md:items-start md:justify-between md:p-6">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
             <span
-              className="rounded-full px-2.5 py-0.5 text-xs font-medium"
-              style={{ backgroundColor: `${config.color}20`, color: config.color }}
+              className="rounded px-2 py-1 text-[11px] font-semibold"
+              style={{ backgroundColor: `${config.color}14`, color: config.color }}
             >
               {config.label}
             </span>
-            {asset.symbol && <span className="text-xs text-gray-500">{asset.market}:{asset.symbol}</span>}
-            <span className="font-mono text-xs text-gray-500">ID: {asset.id.slice(0, 8)}</span>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="mb-1 text-sm text-gray-500">{'\u5f53\u524d\u4ef7\u503c'}</p>
-          <p className="font-mono text-3xl font-bold text-gray-900">
-            {'\u00a5'}{Number(asset.current_value_cny).toLocaleString()}
-          </p>
-          <p className="text-xs text-gray-500">
-            {asset.currency} {Number(asset.current_value).toLocaleString()}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-          <div className="rounded-md bg-white p-2 text-blue-500 shadow-sm">
-            <Calendar size={20} />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">{'\u521b\u5efa\u65f6\u95f4'}</p>
-            <p className="text-sm font-medium text-gray-900">
-              {dayjs(asset.created_at).format('YYYY-MM-DD HH:mm')}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-          <div className="rounded-md bg-white p-2 text-green-500 shadow-sm">
-            <Wallet size={20} />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">{'\u4efd\u989d / \u5747\u4ef7'}</p>
-            <p className="text-sm font-medium text-gray-900">
-              {Number(asset.quantity).toLocaleString()} / {Number(asset.avg_cost).toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-          <div className="rounded-md bg-white p-2 text-purple-500 shadow-sm">
-            <Tag size={20} />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">{'\u6700\u65b0\u4ef7 / \u6c47\u7387'}</p>
-            <p className="text-sm font-medium text-gray-900">
-              {Number(asset.current_price).toLocaleString()} / {Number(asset.exchange_rate_to_cny).toLocaleString()}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-          <div className="rounded-md bg-white p-2 text-red-500 shadow-sm">
-            <TrendingUp size={20} />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">{'\u6d6e\u76c8/\u6d6e\u4e8f'}</p>
-            <p className={`text-sm font-bold ${gainClass}`}>
-              {'\u00a5'}{gainCny.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              <span className="ml-2 text-xs">
-                ({nativeSymbol}{gainNative.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {gainPct.toFixed(2)}%)
+            {asset.symbol && (
+              <span className="rounded bg-ink-50 px-2 py-1 text-[11px] font-semibold text-ink-500">
+                {asset.market || '-'} · {asset.symbol}
               </span>
-            </p>
+            )}
+            {asset.group && <span className="text-xs text-ink-400">{asset.group}</span>}
           </div>
+          <h2 className="mt-3 truncate text-2xl font-bold text-ink-950">{asset.name}</h2>
+          <p className="mt-1 text-xs text-ink-400">
+            创建于 {dayjs(asset.created_at).format('YYYY-MM-DD HH:mm')}
+          </p>
         </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 p-3">
-          <div>
-            <p className="text-xs text-gray-500">{'\u4ef7\u683c/\u51c0\u503c\u65e5\u671f'}</p>
-            <p className="text-sm font-medium text-gray-900">
-              {asset.price_updated_at ? dayjs(asset.price_updated_at).format('YYYY-MM-DD HH:mm') : '\u6682\u65e0\u884c\u60c5\u5237\u65b0'}
-            </p>
-            <p className="text-xs text-gray-400">
-              {'\u672c\u5730\u66f4\u65b0'} {dayjs(asset.updated_at).format('YYYY-MM-DD HH:mm')}
-            </p>
-            {asset.quote_source && <p className="text-xs text-gray-400">{asset.quote_source}</p>}
+        <div className="md:text-right">
+          <div className="text-xs font-semibold uppercase text-ink-400">当前价值</div>
+          <div className="mt-2 text-3xl font-semibold text-ink-950">{formatCny(asset.current_value_cny)}</div>
+          <div className="mt-1 text-xs text-ink-400">
+            {asset.currency} {formatQuantity(asset.current_value)}
           </div>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing || !asset.symbol || !asset.market}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-            {'\u5237\u65b0'}
-          </button>
         </div>
       </div>
 
-      {refreshError && <p className="mt-3 text-sm text-red-500">{refreshError}</p>}
+      <div className="grid sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          { label: '持有份额', value: formatQuantity(asset.quantity), helper: asset.currency },
+          { label: '买入单位成本', value: `${nativeSymbol}${formatQuantity(asset.avg_cost)}`, helper: '平均成本' },
+          { label: '最新单位价格', value: `${nativeSymbol}${formatQuantity(asset.current_price)}`, helper: asset.quote_source || '手动估值' },
+          { label: '兑人民币汇率', value: formatQuantity(asset.exchange_rate_to_cny), helper: `${asset.currency}/CNY` },
+          {
+            label: '浮盈 / 浮亏',
+            value: `${gainCny >= 0 ? '+' : ''}${formatCny(gainCny)}`,
+            helper: `${nativeSymbol}${formatQuantity(gainNative)} · ${formatPercent(gainPct)}`,
+            className: gainClass,
+          },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="min-w-0 border-b border-ink-100 p-5 sm:border-r xl:border-b-0 last:border-r-0"
+          >
+            <div className="text-xs text-ink-400">{item.label}</div>
+            <div className={`mt-2 truncate text-lg font-bold ${item.className || 'text-ink-900'}`}>{item.value}</div>
+            <div className="mt-1 truncate text-[11px] text-ink-400">{item.helper}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-3 bg-ink-50/55 px-5 py-3 sm:flex-row sm:items-center sm:justify-between md:px-6">
+        <div className="text-xs text-ink-400">
+          {asset.price_updated_at
+            ? `价格更新于 ${dayjs(asset.price_updated_at).format('YYYY-MM-DD HH:mm')}`
+            : '暂无行情刷新记录'}
+          <span className="mx-2 text-ink-200">|</span>
+          持仓更新于 {dayjs(asset.updated_at).format('YYYY-MM-DD HH:mm')}
+        </div>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing || !asset.symbol || !asset.market}
+          className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-ink-200 bg-white px-3 text-xs font-semibold text-ink-600 hover:border-brand-500 hover:text-brand-700 disabled:opacity-40"
+        >
+          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+          刷新行情
+        </button>
+      </div>
+
+      {refreshError && <p className="border-t border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600">{refreshError}</p>}
     </div>
   );
 }

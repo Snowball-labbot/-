@@ -69,31 +69,30 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-gray-100 bg-white p-4">
+    <div className="flex h-full flex-col bg-canvas">
+      <div className="flex shrink-0 items-center justify-between border-b border-ink-100 bg-white px-5 py-3 md:px-7">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100"
+            className="rounded-md p-2 text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-900"
             title={'\u8fd4\u56de\u603b\u89c8'}
           >
             <ArrowLeft size={20} />
           </button>
-          <h2 className="truncate text-xl font-bold text-gray-900">
-            {asset.name || '\u8d44\u4ea7\u8be6\u60c5'}
-          </h2>
+          <span className="text-sm font-semibold text-ink-600">{'\u8fd4\u56de\u8d44\u4ea7\u5217\u8868'}</span>
         </div>
 
         <button
           onClick={startEdit}
-          className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-100"
+          className="flex h-9 items-center gap-2 rounded-md border border-ink-200 bg-white px-3 text-sm font-semibold text-ink-700 transition-colors hover:border-brand-500 hover:text-brand-700"
         >
           <Edit2 size={16} />
           {'\u4fee\u6539\u8d44\u4ea7'}
         </button>
       </div>
 
-      <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto p-6">
+      <div className="custom-scrollbar flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[1400px] space-y-6 p-4 md:p-7">
         <section>
           <AssetInfo asset={asset} />
         </section>
@@ -102,21 +101,21 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
           <TransactionForm asset={asset} />
         </section>
 
-        <section className="rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
+        <section className="rounded-lg border border-ink-100 bg-white p-5 md:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">{'\u8d8b\u52bf\u5206\u6790'}</h3>
-              <p className="text-xs text-gray-500">{'\u4ece\u9996\u6b21\u884c\u60c5\u66f4\u65b0\u65e5\u8d77\uff0c\u6309\u9009\u5b9a\u533a\u95f4\u663e\u793a\u8d44\u4ea7\u603b\u989d'}</p>
+              <h3 className="text-base font-bold text-ink-900">{'\u8d8b\u52bf\u5206\u6790'}</h3>
+              <p className="text-xs text-ink-400">{'\u4ece\u9996\u6b21\u884c\u60c5\u66f4\u65b0\u65e5\u8d77\uff0c\u6309\u9009\u5b9a\u533a\u95f4\u663e\u793a\u8d44\u4ea7\u603b\u989d'}</p>
             </div>
-            <div className="flex rounded-lg bg-gray-100 p-1">
+            <div className="flex rounded-md bg-ink-50 p-1">
               {ranges.map((range) => (
                 <button
                   key={range.value}
                   onClick={() => setTimeRange(range.value)}
                   className={`rounded-md px-3 py-1 text-xs font-medium transition-all ${
                     timeRange === range.value
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-white text-brand-700 shadow-sm'
+                      : 'text-ink-400 hover:text-ink-700'
                   }`}
                 >
                   {range.label}
@@ -135,8 +134,8 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
           </div>
         </section>
 
-        <section className="rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-lg font-bold text-gray-900">{'\u5386\u53f2\u8bb0\u5f55'}</h3>
+        <section className="rounded-lg border border-ink-100 bg-white p-5 md:p-6">
+          <h3 className="mb-4 text-base font-bold text-ink-900">{'\u5386\u53f2\u8bb0\u5f55'}</h3>
           <Suspense fallback={
             <div className="flex justify-center py-10">
               <Loader2 className="animate-spin text-gray-400" />
@@ -145,11 +144,12 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
             <AssetSpecificHistory assetId={asset.id} />
           </Suspense>
         </section>
+        </div>
       </div>
 
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-md animate-in rounded-xl bg-white p-6 shadow-2xl duration-200 fade-in zoom-in">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-950/40 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
             <button
               onClick={() => setIsEditing(false)}
               className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"

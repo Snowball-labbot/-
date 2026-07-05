@@ -9,6 +9,11 @@ interface AssetSpecificChartProps {
   timeRange: 'week' | 'month' | 'year';
 }
 
+interface AxisTooltipParams {
+  axisValue: string;
+  value: number | string;
+}
+
 export function AssetSpecificChart({ asset, timeRange }: AssetSpecificChartProps) {
   const { getHoldingTrend } = useAssetStore();
   const [points, setPoints] = useState<TrendPoint[]>([]);
@@ -33,7 +38,7 @@ export function AssetSpecificChart({ asset, timeRange }: AssetSpecificChartProps
     return {
       tooltip: {
         trigger: 'axis',
-        formatter: (params: any[]) => {
+        formatter: (params: AxisTooltipParams[]) => {
           const total = Number(params[0].value);
           const gain = total > 0 ? total - costBasisCny : 0;
           const color = gain >= 0 ? '#ef4444' : '#16a34a';

@@ -3,9 +3,8 @@ import { Loader2, Plus, Search, X } from 'lucide-react';
 import { useAssetStore } from '@/store/useAssetStore';
 import { ASSET_CONFIG } from '@/constants/assets';
 import { AssetType, MarketInstrument } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
-import { api } from '@/lib/api';
+import { api, getErrorMessage } from '@/lib/api';
 
 interface AssetInputFormProps {
   onSuccess?: () => void;
@@ -65,9 +64,9 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
         if (results.length === 0) {
           setQuoteMessage('没有匹配行情，可以继续手动填写价格');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setCandidates([]);
-        setQuoteMessage(err.message || '行情查询失败，可以继续手动填写价格');
+        setQuoteMessage(getErrorMessage(err, '行情查询失败，可以继续手动填写价格'));
       } finally {
         setSearching(false);
       }
@@ -110,8 +109,8 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
       const quote = await api.quoteMarket(candidate.market, candidate.symbol, candidate.kind);
       applyQuote(quote);
       setQuoteMessage('已自动绑定最新价格');
-    } catch (err: any) {
-      setQuoteMessage(err.message || '最新价格获取失败，可以手动填写价格');
+    } catch (err: unknown) {
+      setQuoteMessage(getErrorMessage(err, '最新价格获取失败，可以手动填写价格'));
     }
   };
 
@@ -125,8 +124,8 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
       const quote = await api.quoteMarket(nextMarket, query, inferKind(nextMarket));
       applyQuote(quote);
       setQuoteMessage('已自动绑定最新价格');
-    } catch (err: any) {
-      setQuoteMessage(err.message || '行情获取失败，可以手动填写价格');
+    } catch (err: unknown) {
+      setQuoteMessage(getErrorMessage(err, '行情获取失败，可以手动填写价格'));
     } finally {
       setSearching(false);
     }
@@ -159,8 +158,8 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
         fee: isNaN(numFee) ? 0 : numFee,
         exchange_rate_to_cny: numExchangeRate,
       });
-    } catch (err: any) {
-      setError(err.message || '添加资产失败');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '添加资产失败'));
       return;
     }
 
@@ -180,13 +179,8 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>新增持仓</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">资产类型</label>
               <select
@@ -205,7 +199,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                   setCandidates([]);
                   setQuoteMessage('');
                 }}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               >
                 {Object.entries(ASSET_CONFIG).map(([assetType, config]) => (
                   <option key={assetType} value={assetType}>{config.label}</option>
@@ -225,7 +219,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                   }}
                   onBlur={refreshTypedSymbol}
                   placeholder="可选：017091 / 515450 / AAPL"
-                  className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-10 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="flex h-10 w-full rounded-md border border-ink-200 bg-white py-2 pl-9 pr-10 text-sm text-ink-800"
                 />
                 {symbol && (
                   <button
@@ -266,14 +260,14 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">资产名称</label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="输入资产名称"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
             <div className="space-y-2">
@@ -284,7 +278,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 onChange={(e) => setGroup(e.target.value)}
                 placeholder="输入或选择分组"
                 list="groups-list"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
               <datalist id="groups-list">
                 {existingGroups.map((item) => <option key={item} value={item} />)}
@@ -292,7 +286,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">持有份额/股数</label>
               <input
@@ -305,7 +299,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 step="0.0001"
                 min="0"
                 placeholder="0"
-                className={cn("flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", error ? "border-red-500 focus-visible:ring-red-500" : "")}
+                className={cn("flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800", error ? "border-red-500" : "")}
               />
             </div>
             <div className="space-y-2">
@@ -317,19 +311,19 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 step="0.0001"
                 min="0"
                 placeholder="可改成真实买入成本"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-[1fr_1.35fr_1fr_1fr] gap-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1.35fr_1fr_1fr]">
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">币种</label>
               <input
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value.toUpperCase())}
                 maxLength={3}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
             <div className="space-y-2">
@@ -341,7 +335,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 step="0.0001"
                 min="0"
                 placeholder="自动或手动"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
             <div className="space-y-2">
@@ -352,7 +346,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 onChange={(e) => setExchangeRate(e.target.value)}
                 step="0.0001"
                 min="0"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
             <div className="space-y-2">
@@ -363,7 +357,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 onChange={(e) => setFee(e.target.value)}
                 step="0.01"
                 min="0"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
           </div>
@@ -372,12 +366,10 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
 
           <button
             type="submit"
-            className="inline-flex h-10 w-full items-center justify-center whitespace-nowrap rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+            className="inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-md bg-ink-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-ink-800 disabled:pointer-events-none disabled:opacity-50"
           >
             <Plus className="mr-2 h-4 w-4" /> 添加持仓
           </button>
         </form>
-      </CardContent>
-    </Card>
   );
 }

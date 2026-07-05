@@ -22,7 +22,6 @@ interface AssetState {
   exportCurrentAssets: () => Promise<void>;
   importAssetBackup: (file: File) => Promise<number>;
   removeHistory: (historyId: string) => void;
-  getTotalAssets: () => number;
 }
 
 export const useAssetStore = create<AssetState>((set, get) => ({
@@ -115,8 +114,5 @@ export const useAssetStore = create<AssetState>((set, get) => ({
   },
   removeHistory: () => {
     // Transaction deletion is intentionally not exposed in v1 because it rewrites cost basis.
-  },
-  getTotalAssets: () => {
-    return get().assets.reduce((sum, asset) => sum + Number(asset.current_value_cny), 0);
   },
 }));

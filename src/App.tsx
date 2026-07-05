@@ -1,30 +1,56 @@
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { AssetTree } from '@/components/AssetDirectory/AssetTree';
+import { ChangeEvent, lazy, Suspense, useEffect, useRef, useState } from 'react';
+import {
+  Download,
+  Loader2,
+  Plus,
+  Target,
+  Upload,
+  X,
+} from 'lucide-react';
+import { AppShell, WorkspaceView } from '@/components/layout/AppShell';
+import { AssetsWorkspace } from '@/components/assets/AssetsWorkspace';
 import { AssetDetail } from '@/components/AssetDetail/AssetDetail';
+import { AssetInputForm } from '@/components/AssetInputForm';
+import AuthPage from '@/components/auth/AuthPage';
 import { useAssetStore } from '@/store/useAssetStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { AssetInputForm } from '@/components/AssetInputForm';
-import { TotalAssets } from '@/components/TotalAssets';
-import { Search, Plus, Loader2, Target, X, Download, Upload } from 'lucide-react';
-import { AssetChart } from '@/components/AssetChart';
-import { AllocationStrategyPage } from '@/components/AllocationStrategyPage';
-import AuthPage from '@/components/auth/AuthPage';
-import UserProfile from '@/components/auth/UserProfile';
 import { getErrorMessage } from '@/lib/api';
 
-type MainView = 'dashboard' | 'strategy';
+const PortfolioOverview = lazy(() => import('@/components/dashboard/PortfolioOverview').then(
+  (module) => ({ default: module.PortfolioOverview }),
+));
+const StrategyWorkspace = lazy(() => import('@/components/strategy/StrategyWorkspace').then(
+  (module) => ({ default: module.StrategyWorkspace }),
+));
+
+const viewCopy: Record<WorkspaceView, { title: string; subtitle: string }> = {
+  networth: {
+    title: '净资产',
+    subtitle: '总资产、历史趋势和配置结构',
+  },
+  assets: {
+    title: '资产',
+    subtitle: '按类型、账户与分组管理全部持仓',
+  },
+  strategy: {
+    title: '资产配置策略',
+    subtitle: '比较主流模型、设置目标，并使用 AI 策略助手',
+  },
+  detail: {
+    title: '资产详情',
+    subtitle: '行情、估值、交易流水和历史趋势',
+  },
+};
 
 function App() {
-  const [selectedAssetId, setSelectedAssetId] = useState<string | undefined>(undefined);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [view, setView] = useState<WorkspaceView>('networth');
+  const [selectedAssetId, setSelectedAssetId] = useState<string>();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [mainView, setMainView] = useState<MainView>('dashboard');
-  const { assets, loadAssets, exportCurrentAssets, importAssetBackup } = useAssetStore();
-  const { user, loading, initialize } = useAuthStore();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const { assets, loadAssets, exportCurrentAssets, importAssetBackup } = useAssetStore();
+  const { user, loading, initialize } = useAuthStore();
 
   useEffect(() => {
     initialize();
@@ -36,12 +62,20 @@ function App() {
     }
   }, [user, loadAssets]);
 
+  const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) || null;
+  const totalValue = assets.reduce((sum, asset) => sum + Number(asset.current_value_cny || 0), 0);
+
+  const navigate = (nextView: 'networth' | 'assets' | 'strategy') => {
+    setSelectedAssetId(undefined);
+    setView(nextView);
+  };
+
   const handleExportAssets = async () => {
     setExporting(true);
     try {
       await exportCurrentAssets();
-    } catch (error: unknown) {
-      alert(getErrorMessage(error, '导出失败'));
+    } catch (error) {
+      alert(getErrorMessage(error, '导出失败，请稍后重试。'));
     } finally {
       setExporting(false);
     }
@@ -54,8 +88,8 @@ function App() {
     try {
       const count = await importAssetBackup(file);
       alert(`已导入 ${count} 条资产。`);
-    } catch (error: unknown) {
-      alert(getErrorMessage(error, '导入失败，请确认文件是 portfolio_backup_v1 JSON。'));
+    } catch (error) {
+      alert(getErrorMessage(error, '导入失败，请确认文件为 portfolio_backup_v1 JSON。'));
     } finally {
       setImporting(false);
       event.target.value = '';
@@ -64,150 +98,164 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex h-screen w-full items-center justify-center bg-canvas">
+        <Loader2 className="h-7 w-7 animate-spin text-brand-600" />
       </div>
     );
   }
 
-  if (!user) {
-    return <AuthPage />;
-  }
+  if (!user) return <AuthPage />;
 
-  const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) || null;
-
-  const handleSelectAsset = (id: string | undefined) => {
-    setSelectedAssetId(id);
-  };
-
-  if (mainView === 'strategy' && !selectedAsset) {
-    return <AllocationStrategyPage onBack={() => setMainView('dashboard')} />;
-  }
-
-  const Sidebar = (
-    <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b border-gray-100 bg-white p-4">
-        <h1 className="mb-1 text-xl font-bold text-gray-900">资产管理</h1>
-        <TotalAssets />
-      </div>
-
-      <div className="shrink-0 space-y-3 border-b border-gray-100 bg-gray-50 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input
-            type="text"
-            placeholder="搜索资产..."
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+  const topActions = (
+    <>
+      <button
+        type="button"
+        title="导出资产"
+        onClick={handleExportAssets}
+        disabled={exporting || importing}
+        className="hidden h-9 w-9 items-center justify-center rounded-md border border-ink-100 bg-white text-ink-500 transition hover:border-ink-200 hover:text-ink-900 disabled:opacity-40 sm:inline-flex"
+      >
+        {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+      </button>
+      <button
+        type="button"
+        title="导入资产"
+        onClick={() => importFileRef.current?.click()}
+        disabled={exporting || importing}
+        className="hidden h-9 w-9 items-center justify-center rounded-md border border-ink-100 bg-white text-ink-500 transition hover:border-ink-200 hover:text-ink-900 disabled:opacity-40 sm:inline-flex"
+      >
+        {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+      </button>
+      <input
+        ref={importFileRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={handleImportFile}
+      />
+      {view !== 'strategy' && (
         <button
           type="button"
+          onClick={() => navigate('strategy')}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-ink-200 bg-white px-3 text-xs font-semibold text-ink-700 transition hover:border-brand-500 hover:text-brand-700 md:px-4 md:text-sm"
+        >
+          <Target size={16} />
+          <span className="hidden sm:inline">AI 资产配置</span>
+          <span className="sm:hidden">策略</span>
+        </button>
+      )}
+      {view !== 'strategy' && (
+        <button
+          type="button"
+          aria-label="新增资产"
           onClick={() => setIsAddModalOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          className="inline-flex h-9 items-center gap-2 rounded-md bg-ink-950 px-3 text-xs font-semibold text-white transition hover:bg-ink-800 md:px-4 md:text-sm"
         >
           <Plus size={16} />
-          新增资产
+          <span className="hidden sm:inline">新增资产</span>
         </button>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={handleExportAssets}
-            disabled={exporting || importing}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-blue-200 hover:text-blue-600 disabled:opacity-50"
-          >
-            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download size={14} />}
-            导出资产
-          </button>
-          <button
-            type="button"
-            onClick={() => importFileRef.current?.click()}
-            disabled={exporting || importing}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-blue-200 hover:text-blue-600 disabled:opacity-50"
-          >
-            {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload size={14} />}
-            导入资产
-          </button>
-          <input
-            ref={importFileRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={handleImportFile}
-          />
-        </div>
-      </div>
+      )}
+    </>
+  );
 
-      <div className="custom-scrollbar flex-1 overflow-y-auto p-2">
-        <AssetTree
-          searchQuery={searchQuery}
-          selectedAssetId={selectedAssetId}
-          onSelectAsset={handleSelectAsset}
+  const mobileActions = (
+    <>
+      <button
+        type="button"
+        onClick={handleExportAssets}
+        disabled={exporting || importing}
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink-200 text-xs font-semibold text-ink-600 disabled:opacity-40"
+      >
+        {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+        导出资产
+      </button>
+      <button
+        type="button"
+        onClick={() => importFileRef.current?.click()}
+        disabled={exporting || importing}
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink-200 text-xs font-semibold text-ink-600 disabled:opacity-40"
+      >
+        {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+        导入资产
+      </button>
+    </>
+  );
+
+  let content;
+  if (view === 'strategy') {
+    content = <StrategyWorkspace />;
+  } else if (view === 'detail' && selectedAsset) {
+    content = (
+      <div className="h-[calc(100vh-80px)]">
+        <AssetDetail
+          asset={selectedAsset}
+          onBack={() => {
+            setSelectedAssetId(undefined);
+            setView('assets');
+          }}
         />
       </div>
+    );
+  } else if (view === 'assets') {
+    content = (
+      <AssetsWorkspace
+        onAddAsset={() => setIsAddModalOpen(true)}
+        onSelectAsset={(asset) => {
+          setSelectedAssetId(asset.id);
+          setView('detail');
+        }}
+      />
+    );
+  } else {
+    content = <PortfolioOverview onOpenAssets={() => navigate('assets')} />;
+  }
 
-      <UserProfile />
-    </div>
-  );
-
-  const Dashboard = (
-    <div className="h-full overflow-y-auto p-8">
-      <div className="mx-auto max-w-4xl space-y-8">
-        <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">总览仪表盘</h2>
-            <p className="mt-2 text-gray-500">
-              选择左侧资产查看详情，或查看下方整体分析。
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedAssetId(undefined);
-              setMainView('strategy');
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50"
-          >
-            <Target size={16} />
-            资产配置策略
-          </button>
-        </header>
-        <TotalAssets />
-        <AssetChart />
-      </div>
-    </div>
-  );
-
-  const Content = (
-    <div className="h-full bg-white">
-      {selectedAsset ? (
-        <AssetDetail asset={selectedAsset} onBack={() => setSelectedAssetId(undefined)} />
-      ) : mainView === 'strategy' ? (
-        <AllocationStrategyPage onBack={() => setMainView('dashboard')} />
-      ) : (
-        Dashboard
-      )}
-    </div>
-  );
+  const currentCopy = viewCopy[view === 'detail' && !selectedAsset ? 'assets' : view];
 
   return (
     <>
-      <MainLayout sidebar={Sidebar} content={Content} />
+      <AppShell
+        activeView={view}
+        title={selectedAsset && view === 'detail' ? selectedAsset.name : currentCopy.title}
+        subtitle={currentCopy.subtitle}
+        totalValue={totalValue}
+        assetCount={assets.length}
+        onNavigate={navigate}
+        actions={topActions}
+        mobileActions={mobileActions}
+      >
+        <Suspense
+          fallback={(
+            <div className="flex min-h-[420px] items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
+            </div>
+          )}
+        >
+          {content}
+        </Suspense>
+      </AppShell>
 
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-md animate-in rounded-xl bg-white p-6 shadow-2xl duration-200 fade-in zoom-in">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-950/40 p-3 backdrop-blur-sm md:p-6">
+          <div className="custom-scrollbar relative max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl md:p-7">
             <button
               type="button"
               onClick={() => setIsAddModalOpen(false)}
-              className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
-              aria-label="关闭"
+              className="absolute right-4 top-4 z-10 rounded-md p-2 text-ink-400 transition hover:bg-ink-50 hover:text-ink-800"
+              aria-label="关闭新增资产"
             >
-              <X size={22} />
+              <X size={19} />
             </button>
-            <h2 className="mb-4 text-xl font-bold">新增资产</h2>
-            <AssetInputForm onSuccess={() => setIsAddModalOpen(false)} />
+            <div className="mb-5 pr-12">
+              <h2 className="text-xl font-bold text-ink-950">新增资产</h2>
+              <p className="mt-1 text-sm text-ink-400">录入持仓，或通过行情代码自动绑定最新单位价格。</p>
+            </div>
+            <AssetInputForm
+              onSuccess={() => {
+                setIsAddModalOpen(false);
+                setView('assets');
+              }}
+            />
           </div>
         </div>
       )}

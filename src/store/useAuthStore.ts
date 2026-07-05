@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, getErrorMessage } from '@/lib/api';
 import { User } from '@/types';
 
 interface AuthState {
@@ -32,8 +32,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await api.login(email, password);
       set({ user, loading: false });
-    } catch (error: any) {
-      set({ loading: false, error: error.message || '登录失败' });
+    } catch (error: unknown) {
+      set({ loading: false, error: getErrorMessage(error, '登录失败') });
       throw error;
     }
   },
@@ -42,8 +42,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await api.register(email, password, inviteCode);
       set({ user, loading: false });
-    } catch (error: any) {
-      set({ loading: false, error: error.message || '注册失败' });
+    } catch (error: unknown) {
+      set({ loading: false, error: getErrorMessage(error, '注册失败') });
       throw error;
     }
   },
