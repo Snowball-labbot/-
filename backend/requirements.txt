@@ -8,3 +8,4 @@ pydantic-settings==2.7.1
 email-validator==2.2.0
 akshare==1.18.60
 pandas==2.2.3
+yfinance==0.2.66

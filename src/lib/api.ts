@@ -98,7 +98,7 @@ export const api = {
   refreshHoldingPrice: (holdingId: string) => request<AssetItem>(`/api/holdings/${holdingId}/refresh-price`, {
     method: 'POST',
   }),
-  searchMarket: (query: string, market: 'CN' | 'US') => request<MarketInstrument[]>(`/api/market/search?q=${encodeURIComponent(query)}&market=${market}`),
+  searchMarket: (query: string, market: 'CN' | 'US' | 'KR') => request<MarketInstrument[]>(`/api/market/search?q=${encodeURIComponent(query)}&market=${market}`),
   quoteMarket: (market: string, symbol: string, kind: string) => request<MarketQuote>(`/api/market/quote?market=${encodeURIComponent(market)}&symbol=${encodeURIComponent(symbol)}&kind=${encodeURIComponent(kind)}`),
   summary: () => request<Summary>('/api/analytics/summary'),
   trend: (range: 'week' | 'month' | 'year') => request<TrendPoint[]>(`/api/analytics/trend?range=${range}`),

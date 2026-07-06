@@ -11,16 +11,25 @@ interface AssetInputFormProps {
 }
 
 const quoteEnabledTypes = new Set<AssetType>([AssetType.FUND, AssetType.STOCK, AssetType.BOND]);
+type MarketCode = 'CN' | 'US' | 'KR';
 
-function inferMarket(value: string, type: AssetType): 'CN' | 'US' {
+function inferMarket(value: string, type: AssetType): MarketCode {
   const text = value.trim();
-  if (/^\d{5,6}$/.test(text)) return 'CN';
+  if (/\.(KS|KQ)$/i.test(text)) return 'KR';
+  if (type === AssetType.STOCK && /^\d{6}$/.test(text)) return 'KR';
   if (type === AssetType.FUND || type === AssetType.BOND) return 'CN';
+  if (/^\d{5,6}$/.test(text)) return 'CN';
   return 'US';
 }
 
-function inferKind(market: 'CN' | 'US'): 'fund' | 'stock' {
+function inferKind(market: MarketCode): 'fund' | 'stock' {
   return market === 'CN' ? 'fund' : 'stock';
+}
+
+function marketLabel(market: string) {
+  if (market === 'US') return '美股';
+  if (market === 'KR') return '韩股';
+  return '基金';
 }
 
 export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
@@ -29,7 +38,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
   const [name, setName] = useState('');
   const [group, setGroup] = useState('');
   const [symbol, setSymbol] = useState('');
-  const [market, setMarket] = useState<'CN' | 'US'>('CN');
+  const [market, setMarket] = useState<MarketCode>('CN');
   const [quantity, setQuantity] = useState('1');
   const [unitPrice, setUnitPrice] = useState('');
   const [latestPrice, setLatestPrice] = useState('');
@@ -76,13 +85,13 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
   }, [symbol, type]);
 
   const applyQuote = (quote: MarketInstrument & { exchange_rate_to_cny?: number | null }) => {
-    const nextMarket = quote.market === 'US' ? 'US' : 'CN';
+    const nextMarket: MarketCode = quote.market === 'US' ? 'US' : quote.market === 'KR' ? 'KR' : 'CN';
     setMarket(nextMarket);
     setSymbol(quote.symbol);
     setName(quote.name);
-    setCurrency(quote.currency || (nextMarket === 'US' ? 'USD' : 'CNY'));
+    setCurrency(quote.currency || (nextMarket === 'US' ? 'USD' : nextMarket === 'KR' ? 'KRW' : 'CNY'));
     setType((previousType) => {
-      if (nextMarket === 'US') return AssetType.STOCK;
+      if (nextMarket === 'US' || nextMarket === 'KR') return AssetType.STOCK;
       if (previousType === AssetType.BOND) return AssetType.BOND;
       return AssetType.FUND;
     });
@@ -218,7 +227,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                     if (error) setError('');
                   }}
                   onBlur={refreshTypedSymbol}
-                  placeholder="可选：017091 / 515450 / AAPL"
+                  placeholder="可选：017091 / AAPL / 005930.KS"
                   className="flex h-10 w-full rounded-md border border-ink-200 bg-white py-2 pl-9 pr-10 text-sm text-ink-800"
                 />
                 {symbol && (
@@ -246,7 +255,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                         className="w-full border-b px-4 py-3 text-left text-sm last:border-b-0 hover:bg-gray-50"
                       >
                         <div className="font-medium text-gray-900">
-                          {candidate.name} ({candidate.symbol}) - {candidate.market === 'US' ? '美股' : '基金'}
+                          {candidate.name} ({candidate.symbol}) - {marketLabel(candidate.market)}
                         </div>
                         <div className="text-xs text-gray-500">
                           {candidate.currency}{candidate.price ? ` · 最新价 ${Number(candidate.price).toLocaleString()}` : ''}
