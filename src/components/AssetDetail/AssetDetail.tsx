@@ -92,7 +92,7 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
       </div>
 
       <div className="custom-scrollbar flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[1400px] space-y-6 p-4 md:p-7">
+      <div className="mx-auto max-w-[1320px] space-y-5 p-4 md:p-5 lg:p-6">
         <section>
           <AssetInfo asset={asset} />
         </section>

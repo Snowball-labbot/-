@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
-import { ArrowUpRight, CalendarDays, Database, Layers3, WalletCards } from 'lucide-react';
+import { ArrowUpRight, BriefcaseBusiness, CalendarDays, WalletCards } from 'lucide-react';
 import { useAssetStore } from '@/store/useAssetStore';
 import { ASSET_CONFIG } from '@/constants/assets';
 import { AssetItem, AssetType, TrendPoint } from '@/types';
@@ -45,6 +45,12 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
     0,
   ));
   const pricedAssets = assets.filter((asset) => asset.price_updated_at).length;
+  const investableValue = assets
+    .filter((asset) => asset.type !== AssetType.PROPERTY)
+    .reduce((sum, asset) => sum + Number(asset.current_value_cny || 0), 0);
+  const cashValue = assets
+    .filter((asset) => asset.type === AssetType.CASH)
+    .reduce((sum, asset) => sum + Number(asset.current_value_cny || 0), 0);
   const lastUpdated = assets
     .map((asset) => asset.price_updated_at)
     .filter(Boolean)
@@ -201,48 +207,46 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
     .filter((item) => item.value > 0);
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-6 p-4 md:p-7">
-      <section className="grid overflow-hidden rounded-lg border border-ink-100 bg-white xl:grid-cols-[1.35fr_1fr_1fr]">
-        <div className="min-h-[224px] border-b border-ink-100 p-6 md:p-8 xl:border-b-0 xl:border-r">
+    <div className="mx-auto w-full max-w-[1320px] space-y-5 p-4 md:p-5 lg:p-6">
+      <section className="grid overflow-hidden rounded-lg border border-ink-100 bg-white md:grid-cols-[1.08fr_0.92fr]">
+        <div className="min-h-[188px] border-b border-ink-100 p-5 md:border-b-0 md:border-r md:p-6">
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm font-semibold text-ink-600">Net Worth</span>
             <WalletCards size={20} className="text-ink-300" />
           </div>
-          <div className="mt-7 font-display text-[clamp(2.1rem,4vw,4.5rem)] font-semibold leading-none text-ink-950">
+          <div className="mt-5 font-display text-[clamp(2.25rem,4vw,3.75rem)] font-semibold leading-none text-ink-950">
             {formatCompactCny(totalValue)}
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-400">
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-400">
             <span>{assets.length} 个持仓</span>
             <span>{pricedAssets} 个已绑定行情</span>
             <span>{lastUpdated ? `更新于 ${dayjs(lastUpdated).format('MM-DD HH:mm')}` : '等待首次行情更新'}</span>
           </div>
         </div>
 
-        <div className="border-b border-ink-100 p-6 md:p-8 xl:border-b-0 xl:border-r">
+        <div className="p-5 md:p-6">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-ink-600">当前资产</span>
-            <Layers3 size={19} className="text-ink-300" />
+            <span className="text-sm font-semibold text-ink-600">资产概览</span>
+            <BriefcaseBusiness size={19} className="text-ink-300" />
           </div>
-          <div className="mt-7 text-3xl font-semibold text-ink-950">{formatCny(totalValue)}</div>
-          <div className="mt-8">
-            <div className="text-[11px] uppercase text-ink-400">记录成本</div>
-            <div className="mt-1 text-lg font-semibold text-ink-800">{formatCny(totalCost)}</div>
+          <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="col-span-2">
+              <div className="text-[11px] text-ink-400">可投资资产</div>
+              <div className="mt-1 text-2xl font-semibold text-ink-950">{formatCny(investableValue)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-ink-400">现金</div>
+              <div className="mt-1 text-base font-semibold text-ink-800">{formatCny(cashValue)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-ink-400">记录成本</div>
+              <div className="mt-1 text-base font-semibold text-ink-800">{formatCny(totalCost)}</div>
+            </div>
           </div>
-        </div>
-
-        <div className="p-6 md:p-8">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-ink-600">数据覆盖</span>
-            <Database size={19} className="text-ink-300" />
-          </div>
-          <div className="mt-7 text-3xl font-semibold text-ink-950">
-            {assets.length > 0 ? formatPercent((pricedAssets / assets.length) * 100, 0) : '0%'}
-          </div>
-          <p className="mt-2 text-sm leading-6 text-ink-400">已自动绑定行情的持仓比例</p>
           <button
             type="button"
             onClick={onOpenAssets}
-            className="mt-7 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700"
+            className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
           >
             管理全部资产
             <ArrowUpRight size={15} />
@@ -257,7 +261,7 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
               key={type}
               type="button"
               onClick={onOpenAssets}
-              className="min-w-[164px] flex-1 rounded-md border border-ink-100 bg-white px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-ink-200 hover:shadow-sm"
+              className="min-w-[140px] flex-1 rounded-md border border-ink-100 bg-white px-3 py-2.5 text-left transition hover:-translate-y-0.5 hover:border-ink-200 hover:shadow-sm"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-ink-500">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ASSET_CONFIG[type].color }} />
@@ -310,7 +314,7 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+      <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
         <section className="rounded-lg border border-ink-100 bg-white">
           <div className="border-b border-ink-100 px-5 py-4 md:px-6">
             <h2 className="text-base font-bold text-ink-900">资产配置</h2>

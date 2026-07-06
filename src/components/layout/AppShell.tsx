@@ -45,7 +45,7 @@ export function AppShell({
 
   const sidebar = (
     <>
-      <div className="flex h-20 items-center border-b border-ink-100 px-6">
+      <div className="flex h-[72px] items-center border-b border-ink-100 px-4">
         <button
           type="button"
           onClick={() => navigate('networth')}
@@ -61,7 +61,7 @@ export function AppShell({
         </button>
       </div>
 
-      <nav className="space-y-1 px-3 py-5" aria-label="主导航">
+      <nav className="space-y-1 px-2.5 py-4" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = navActive === item.value;
@@ -71,7 +71,7 @@ export function AppShell({
               type="button"
               onClick={() => navigate(item.value)}
               className={cn(
-                'group flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition-colors',
+                'group flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left transition-colors',
                 active ? 'bg-ink-950 text-white' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-950',
               )}
             >
@@ -101,12 +101,12 @@ export function AppShell({
         </div>
       )}
 
-      <div className="mx-3 mt-4 border-t border-ink-100 pt-4">
+      <div className="mx-2.5 mt-3 border-t border-ink-100 pt-3">
         <button
           type="button"
           onClick={() => navigate('strategy')}
           className={cn(
-            'flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition-colors',
+            'flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left transition-colors',
             navActive === 'strategy'
               ? 'bg-brand-50 text-brand-700'
               : 'text-ink-600 hover:bg-ink-50 hover:text-ink-950',
@@ -120,7 +120,7 @@ export function AppShell({
         </button>
       </div>
 
-      <div className="mt-auto border-t border-ink-100 p-4">
+      <div className="mt-auto border-t border-ink-100 p-3">
         <div className="mb-3 rounded-md bg-ink-50 p-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-ink-700">
             <Bot size={14} />
@@ -149,7 +149,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-canvas text-ink-950">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-ink-100 bg-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[200px] flex-col border-r border-ink-100 bg-white lg:flex">
         {sidebar}
       </aside>
 
@@ -175,8 +175,8 @@ export function AppShell({
         </div>
       )}
 
-      <div className="lg:pl-[248px]">
-        <header className="sticky top-0 z-20 flex min-h-20 items-center gap-4 border-b border-ink-100 bg-white/95 px-4 backdrop-blur md:px-7">
+      <div className="lg:pl-[200px]">
+        <header className="sticky top-0 z-20 flex min-h-[72px] items-center gap-4 border-b border-ink-100 bg-white/95 px-4 backdrop-blur md:px-5">
           <button
             type="button"
             aria-label="打开导航"
@@ -192,7 +192,7 @@ export function AppShell({
           <div className="flex shrink-0 items-center gap-2">{actions}</div>
         </header>
 
-        <main className="min-h-[calc(100vh-80px)]">{children}</main>
+        <main className="min-h-[calc(100vh-72px)]">{children}</main>
       </div>
     </div>
   );

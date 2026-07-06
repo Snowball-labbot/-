@@ -90,7 +90,7 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-6 p-4 md:p-7">
+    <div className="mx-auto w-full max-w-[1320px] space-y-5 p-4 md:p-5 lg:p-6">
       <section className="rounded-lg border border-ink-100 bg-white">
         <div className="flex flex-col gap-4 border-b border-ink-100 p-5 md:flex-row md:items-center md:justify-between md:px-6">
           <div>

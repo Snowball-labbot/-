@@ -186,7 +186,7 @@ function App() {
     content = <StrategyWorkspace />;
   } else if (view === 'detail' && selectedAsset) {
     content = (
-      <div className="h-[calc(100vh-80px)]">
+      <div className="h-[calc(100vh-72px)]">
         <AssetDetail
           asset={selectedAsset}
           onBack={() => {

@@ -195,7 +195,7 @@ export function StrategyWorkspace() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-6 p-4 md:p-7">
+    <div className="mx-auto w-full max-w-[1320px] space-y-5 p-4 md:p-5 lg:p-6">
       <section className="flex flex-col gap-5 rounded-lg border border-ink-100 bg-white p-5 md:flex-row md:items-center md:justify-between md:p-6">
         <div className="flex items-center gap-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-md bg-brand-50 text-brand-700">
