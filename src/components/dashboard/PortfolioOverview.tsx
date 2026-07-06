@@ -207,38 +207,38 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
     .filter((item) => item.value > 0);
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] space-y-5 p-4 md:p-5 lg:p-6">
-      <section className="grid overflow-hidden rounded-lg border border-ink-100 bg-white md:grid-cols-[1.08fr_0.92fr]">
-        <div className="min-h-[188px] border-b border-ink-100 p-5 md:border-b-0 md:border-r md:p-6">
+    <div className="mx-auto w-full max-w-[1180px] space-y-4 p-4 md:p-5 lg:p-6">
+      <section className="grid overflow-hidden rounded-lg border border-ink-100 bg-white lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="border-b border-ink-100 p-5 lg:border-b-0 lg:border-r lg:p-6">
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm font-semibold text-ink-600">Net Worth</span>
             <WalletCards size={20} className="text-ink-300" />
           </div>
-          <div className="mt-5 font-display text-[clamp(2.25rem,4vw,3.75rem)] font-semibold leading-none text-ink-950">
+          <div className="mt-4 font-display text-[clamp(2.1rem,4vw,3.55rem)] font-semibold leading-none text-ink-950">
             {formatCompactCny(totalValue)}
           </div>
-          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-400">
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-400">
             <span>{assets.length} 个持仓</span>
             <span>{pricedAssets} 个已绑定行情</span>
             <span>{lastUpdated ? `更新于 ${dayjs(lastUpdated).format('MM-DD HH:mm')}` : '等待首次行情更新'}</span>
           </div>
         </div>
 
-        <div className="p-5 md:p-6">
+        <div className="p-5 lg:p-6">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-ink-600">资产概览</span>
             <BriefcaseBusiness size={19} className="text-ink-300" />
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
-            <div className="col-span-2">
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-md bg-ink-50/70 p-3">
               <div className="text-[11px] text-ink-400">可投资资产</div>
-              <div className="mt-1 text-2xl font-semibold text-ink-950">{formatCny(investableValue)}</div>
+              <div className="mt-1 text-xl font-semibold text-ink-950">{formatCny(investableValue)}</div>
             </div>
-            <div>
+            <div className="rounded-md bg-ink-50/70 p-3">
               <div className="text-[11px] text-ink-400">现金</div>
               <div className="mt-1 text-base font-semibold text-ink-800">{formatCny(cashValue)}</div>
             </div>
-            <div>
+            <div className="col-span-2 rounded-md bg-ink-50/70 p-3">
               <div className="text-[11px] text-ink-400">记录成本</div>
               <div className="mt-1 text-base font-semibold text-ink-800">{formatCny(totalCost)}</div>
             </div>
@@ -255,13 +255,13 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
       </section>
 
       {slices.length > 0 && (
-        <section className="custom-scrollbar flex gap-2 overflow-x-auto pb-1">
+        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {slices.map(({ type, value }) => (
             <button
               key={type}
               type="button"
               onClick={onOpenAssets}
-              className="min-w-[140px] flex-1 rounded-md border border-ink-100 bg-white px-3 py-2.5 text-left transition hover:-translate-y-0.5 hover:border-ink-200 hover:shadow-sm"
+              className="min-w-0 rounded-md border border-ink-100 bg-white px-3 py-2.5 text-left transition hover:-translate-y-0.5 hover:border-ink-200 hover:shadow-sm"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-ink-500">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ASSET_CONFIG[type].color }} />
@@ -297,7 +297,7 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
             ))}
           </div>
         </div>
-        <div className="relative min-h-[300px] px-3 py-4 md:min-h-[360px] md:px-5">
+        <div className="relative min-h-[290px] px-3 py-4 md:px-5">
           {trendLoading && (
             <div className="absolute right-5 top-4 z-10 inline-flex items-center gap-2 text-xs text-ink-400">
               <CalendarDays size={14} className="animate-pulse" />
@@ -305,9 +305,9 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
             </div>
           )}
           {trend.length > 0 ? (
-            <ReactECharts option={trendOption} notMerge lazyUpdate style={{ width: '100%', height: 330 }} />
+            <ReactECharts option={trendOption} notMerge lazyUpdate style={{ width: '100%', height: 310 }} />
           ) : (
-            <div className="flex h-[300px] items-center justify-center text-sm text-ink-400">
+            <div className="flex h-[290px] items-center justify-center text-sm text-ink-400">
               首次刷新行情后，这里会开始记录净资产曲线
             </div>
           )}
@@ -321,9 +321,9 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
             <p className="mt-1 text-xs text-ink-400">悬停查看分类和具体持仓金额</p>
           </div>
           {assets.length > 0 ? (
-            <ReactECharts option={donutOption} notMerge lazyUpdate style={{ width: '100%', height: 380 }} />
+            <ReactECharts option={donutOption} notMerge lazyUpdate style={{ width: '100%', height: 340 }} />
           ) : (
-            <div className="flex h-[380px] items-center justify-center text-sm text-ink-400">暂无资产数据</div>
+            <div className="flex h-[340px] items-center justify-center text-sm text-ink-400">暂无资产数据</div>
           )}
         </section>
 

@@ -195,7 +195,7 @@ export function StrategyWorkspace() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] space-y-5 p-4 md:p-5 lg:p-6">
+    <div className="mx-auto w-full max-w-[1180px] space-y-4 p-4 md:p-5 lg:p-6">
       <section className="flex flex-col gap-5 rounded-lg border border-ink-100 bg-white p-5 md:flex-row md:items-center md:justify-between md:p-6">
         <div className="flex items-center gap-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-md bg-brand-50 text-brand-700">
@@ -258,7 +258,7 @@ export function StrategyWorkspace() {
           </div>
         </div>
 
-        <div className="grid auto-rows-[160px] gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid auto-rows-[150px] gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {visibleStrategies.map((strategy) => {
             const active = strategy.id === selectedStrategy?.id;
             const weights = Object.entries(strategy.weights)
@@ -307,16 +307,16 @@ export function StrategyWorkspace() {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="rounded-lg border border-ink-100 bg-white">
           <div className="border-b border-ink-100 px-5 py-4 md:px-6">
             <h3 className="text-base font-bold text-ink-900">{selectedStrategy?.name}</h3>
             <p className="mt-1 text-xs text-ink-400">当前占比与目标占比</p>
           </div>
           {assets.length > 0 ? (
-            <ReactECharts option={chartOption} notMerge lazyUpdate style={{ width: '100%', height: 390 }} />
+            <ReactECharts option={chartOption} notMerge lazyUpdate style={{ width: '100%', height: 360 }} />
           ) : (
-            <div className="flex h-[390px] items-center justify-center text-sm text-ink-400">
+            <div className="flex h-[360px] items-center justify-center text-sm text-ink-400">
               添加资产后即可比较配置差距
             </div>
           )}

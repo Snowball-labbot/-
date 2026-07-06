@@ -90,16 +90,16 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] space-y-5 p-4 md:p-5 lg:p-6">
+    <div className="mx-auto w-full max-w-[1180px] space-y-4 p-4 md:p-5 lg:p-6">
       <section className="rounded-lg border border-ink-100 bg-white">
-        <div className="flex flex-col gap-4 border-b border-ink-100 p-5 md:flex-row md:items-center md:justify-between md:px-6">
+        <div className="flex flex-col gap-4 border-b border-ink-100 p-4 md:flex-row md:items-center md:justify-between md:px-5">
           <div>
             <div className="text-sm font-semibold text-ink-600">全部资产</div>
-            <div className="mt-1 text-3xl font-semibold text-ink-950">{formatCny(totalValue)}</div>
+            <div className="mt-1 text-2xl font-semibold text-ink-950">{formatCny(totalValue)}</div>
             <div className="mt-1 text-xs text-ink-400">{assets.length} 个持仓，按类型和账户分组展示</div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="relative block min-w-[240px]">
+            <label className="relative block min-w-[220px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" size={17} />
               <input
                 type="search"
@@ -120,7 +120,7 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
           </div>
         </div>
 
-        <div className="custom-scrollbar flex gap-1 overflow-x-auto p-3 md:px-5">
+        <div className="custom-scrollbar flex gap-1 overflow-x-auto p-2.5 md:px-4">
           <button
             type="button"
             onClick={() => setTypeFilter('all')}
@@ -177,7 +177,7 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
               <button
                 type="button"
                 onClick={() => toggleSection(sectionKey)}
-                className="flex w-full items-center gap-3 border-b border-ink-100 px-5 py-4 text-left hover:bg-ink-50/70 md:px-6"
+                className="flex w-full items-center gap-3 border-b border-ink-100 px-5 py-3.5 text-left hover:bg-ink-50/70 md:px-6"
               >
                 {sectionCollapsed ? <ChevronRight size={17} /> : <ChevronDown size={17} />}
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ASSET_CONFIG[section.type].color }} />
@@ -213,7 +213,7 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
 
                         {!groupCollapsed && (
                           <div className="custom-scrollbar overflow-x-auto">
-                            <table className="w-full min-w-[920px] table-fixed text-sm">
+                            <table className="w-full min-w-[860px] table-fixed text-sm">
                               <thead className="text-left text-[11px] uppercase text-ink-400">
                                 <tr>
                                   <th className="w-[26%] px-8 py-3 font-semibold">资产</th>

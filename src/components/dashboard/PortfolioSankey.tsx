@@ -140,11 +140,11 @@ export function PortfolioSankey({ assets }: PortfolioSankeyProps) {
 
   if (assets.length === 0) {
     return (
-      <div className="flex h-[360px] items-center justify-center text-sm text-ink-400">
+      <div className="flex h-[340px] items-center justify-center text-sm text-ink-400">
         添加资产后即可查看资金流向
       </div>
     );
   }
 
-  return <ReactECharts option={option} notMerge lazyUpdate style={{ width: '100%', height: 380 }} />;
+  return <ReactECharts option={option} notMerge lazyUpdate style={{ width: '100%', height: 340 }} />;
 }
