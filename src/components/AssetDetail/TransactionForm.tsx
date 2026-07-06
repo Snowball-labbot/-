@@ -1,11 +1,16 @@
 import { useState } from 'react';
-import { PlusCircle } from 'lucide-react';
-import { AssetItem, TransactionItem } from '@/types';
+import { PlusCircle, RefreshCw } from 'lucide-react';
+import { AssetItem, AssetType, TransactionItem } from '@/types';
 import { useAssetStore } from '@/store/useAssetStore';
-import { getErrorMessage } from '@/lib/api';
+import { api, getErrorMessage } from '@/lib/api';
 
 interface TransactionFormProps {
   asset: AssetItem;
+}
+
+function quoteKind(asset: AssetItem) {
+  if (asset.type === AssetType.FUND || asset.type === AssetType.BOND) return 'fund';
+  return 'stock';
 }
 
 export function TransactionForm({ asset }: TransactionFormProps) {
@@ -18,6 +23,25 @@ export function TransactionForm({ asset }: TransactionFormProps) {
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const canSyncQuote = Boolean(asset.market && asset.symbol);
+
+  const syncQuote = async () => {
+    if (!asset.market || !asset.symbol) return;
+    setSyncing(true);
+    setError('');
+    try {
+      const quote = await api.quoteMarket(asset.market, asset.symbol, quoteKind(asset));
+      setUnitPrice(String(quote.price));
+      setExchangeRate(String(quote.exchange_rate_to_cny));
+      setNote((current) => current || `按 ${quote.quote_source} 同步行情`);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '同步行情失败，请手动填写单价和汇率。'));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +50,15 @@ export function TransactionForm({ asset }: TransactionFormProps) {
     const parsedFee = parseFloat(fee || '0');
     const parsedExchangeRate = parseFloat(exchangeRate || '1');
 
-    if (isNaN(parsedQuantity) || parsedQuantity < 0 || isNaN(parsedPrice) || parsedPrice < 0 || isNaN(parsedExchangeRate) || parsedExchangeRate <= 0) {
-      setError('\u8bf7\u8f93\u5165\u6709\u6548\u7684\u4efd\u989d\u3001\u4ef7\u683c\u548c\u6c47\u7387');
+    if (
+      isNaN(parsedQuantity)
+      || parsedQuantity < 0
+      || isNaN(parsedPrice)
+      || parsedPrice < 0
+      || isNaN(parsedExchangeRate)
+      || parsedExchangeRate <= 0
+    ) {
+      setError('请输入有效的份额、价格和汇率');
       return;
     }
 
@@ -46,27 +77,42 @@ export function TransactionForm({ asset }: TransactionFormProps) {
       setQuantity('');
       setNote('');
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '\u4fdd\u5b58\u6d41\u6c34\u5931\u8d25'));
+      setError(getErrorMessage(err, '保存流水失败'));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4 rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-gray-900">{'\u8bb0\u5f55\u4ea4\u6613\u6d41\u6c34'}</h3>
-        <span className="text-xs text-gray-500">{asset.currency}</span>
+    <form onSubmit={submit} className="space-y-4 rounded-lg border border-ink-100 bg-white p-5 md:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-base font-bold text-ink-900">交易流水</h3>
+          <p className="mt-1 text-xs text-ink-400">记录买入、卖出或价格调整，保存后更新持仓估值。</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-ink-50 px-2.5 py-1 text-xs font-semibold text-ink-500">{asset.currency}</span>
+          <button
+            type="button"
+            onClick={syncQuote}
+            disabled={!canSyncQuote || syncing || saving}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-ink-200 bg-white px-3 text-xs font-semibold text-ink-600 transition-colors hover:border-brand-500 hover:text-brand-700 disabled:opacity-40"
+          >
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            同步行情
+          </button>
+        </div>
       </div>
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
         <select
           value={type}
           onChange={(e) => setType(e.target.value as TransactionItem['type'])}
-          className="h-10 rounded-md border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="h-10 rounded-md border border-ink-200 bg-white px-3 text-sm text-ink-800 outline-none focus:border-brand-500"
         >
-          <option value="buy">{'\u4e70\u5165/\u8ffd\u52a0'}</option>
-          <option value="sell">{'\u5356\u51fa/\u51cf\u5c11'}</option>
-          <option value="adjustment">{'\u4ef7\u683c/\u624b\u52a8\u8c03\u6574'}</option>
+          <option value="buy">买入/追加</option>
+          <option value="sell">卖出/减少</option>
+          <option value="adjustment">价格/手动调整</option>
         </select>
         <input
           type="number"
@@ -74,8 +120,8 @@ export function TransactionForm({ asset }: TransactionFormProps) {
           onChange={(e) => setQuantity(e.target.value)}
           step="0.0001"
           min="0"
-          placeholder={'\u4efd\u989d/\u80a1\u6570'}
-          className="h-10 rounded-md border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="份额/股数"
+          className="h-10 rounded-md border border-ink-200 px-3 text-sm text-ink-800 outline-none placeholder:text-ink-300 focus:border-brand-500"
         />
         <input
           type="number"
@@ -83,8 +129,8 @@ export function TransactionForm({ asset }: TransactionFormProps) {
           onChange={(e) => setUnitPrice(e.target.value)}
           step="0.0001"
           min="0"
-          placeholder={'\u6210\u4ea4/\u6700\u65b0\u5355\u4ef7'}
-          className="h-10 rounded-md border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="成交/最新单价"
+          className="h-10 rounded-md border border-ink-200 px-3 text-sm text-ink-800 outline-none placeholder:text-ink-300 focus:border-brand-500"
         />
         <input
           type="number"
@@ -92,8 +138,8 @@ export function TransactionForm({ asset }: TransactionFormProps) {
           onChange={(e) => setExchangeRate(e.target.value)}
           step="0.0001"
           min="0"
-          placeholder={'\u5151\u4eba\u6c11\u5e01'}
-          className="h-10 rounded-md border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="兑人民币"
+          className="h-10 rounded-md border border-ink-200 px-3 text-sm text-ink-800 outline-none placeholder:text-ink-300 focus:border-brand-500"
         />
         <input
           type="number"
@@ -101,28 +147,32 @@ export function TransactionForm({ asset }: TransactionFormProps) {
           onChange={(e) => setFee(e.target.value)}
           step="0.01"
           min="0"
-          placeholder={'\u8d39\u7528'}
-          className="h-10 rounded-md border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="费用"
+          className="h-10 rounded-md border border-ink-200 px-3 text-sm text-ink-800 outline-none placeholder:text-ink-300 focus:border-brand-500"
         />
       </div>
-      <div className="flex gap-3">
+
+      <div className="flex flex-col gap-3 sm:flex-row">
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder={'\u5907\u6ce8\uff0c\u53ef\u9009'}
-          className="h-10 flex-1 rounded-md border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="备注，可选"
+          className="h-10 flex-1 rounded-md border border-ink-200 px-3 text-sm text-ink-800 outline-none placeholder:text-ink-300 focus:border-brand-500"
         />
         <button
           type="submit"
           disabled={saving}
-          className="flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-600 px-5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           <PlusCircle size={16} />
-          {'\u4fdd\u5b58'}
+          保存
         </button>
       </div>
+
       {error && <p className="text-sm text-red-500">{error}</p>}
-      <p className="text-xs text-gray-500">{'\u201c\u4ef7\u683c/\u624b\u52a8\u8c03\u6574\u201d\u53ef\u7528\u4e8e\u8bb0\u5f55\u6700\u65b0\u51c0\u503c\uff0c\u4efd\u989d\u586b 0 \u65f6\u53ea\u66f4\u65b0\u4ef7\u683c\u548c\u4f30\u503c\u5feb\u7167\u3002'}</p>
+      <p className="text-xs text-ink-400">
+        “价格/手动调整”可用于记录最新净值；份额填 0 时只更新价格和估值快照。
+      </p>
     </form>
   );
 }

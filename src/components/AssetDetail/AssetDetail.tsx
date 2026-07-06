@@ -92,20 +92,16 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
       </div>
 
       <div className="custom-scrollbar flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-[1180px] space-y-4 p-4 md:p-5 lg:p-6">
-        <section>
-          <AssetInfo asset={asset} />
-        </section>
+        <div className="mx-auto max-w-[1180px] space-y-4 p-4 md:p-5 lg:p-6">
+          <section>
+            <AssetInfo asset={asset} />
+          </section>
 
-        <section>
-          <TransactionForm asset={asset} />
-        </section>
-
-        <section className="rounded-lg border border-ink-100 bg-white p-5 md:p-6">
+          <section className="rounded-lg border border-ink-100 bg-white p-5 md:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-ink-900">{'\u8d8b\u52bf\u5206\u6790'}</h3>
-              <p className="text-xs text-ink-400">{'\u4ece\u9996\u6b21\u884c\u60c5\u66f4\u65b0\u65e5\u8d77\uff0c\u6309\u9009\u5b9a\u533a\u95f4\u663e\u793a\u8d44\u4ea7\u603b\u989d'}</p>
+              <h3 className="text-base font-bold text-ink-900">价值走势</h3>
+              <p className="text-xs text-ink-400">按周、月、年查看该资产估值变化</p>
             </div>
             <div className="flex rounded-md bg-ink-50 p-1">
               {ranges.map((range) => (
@@ -126,7 +122,7 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
           <div className="min-h-[300px]">
             <Suspense fallback={
               <div className="flex h-[300px] items-center justify-center">
-                <Loader2 className="animate-spin text-blue-500" />
+                <Loader2 className="animate-spin text-brand-500" />
               </div>
             }>
               <AssetSpecificChart asset={asset} timeRange={timeRange} />
@@ -134,8 +130,12 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
           </div>
         </section>
 
-        <section className="rounded-lg border border-ink-100 bg-white p-5 md:p-6">
-          <h3 className="mb-4 text-base font-bold text-ink-900">{'\u5386\u53f2\u8bb0\u5f55'}</h3>
+          <section>
+            <TransactionForm asset={asset} />
+          </section>
+
+          <section className="rounded-lg border border-ink-100 bg-white p-5 md:p-6">
+          <h3 className="mb-4 text-base font-bold text-ink-900">记录历史</h3>
           <Suspense fallback={
             <div className="flex justify-center py-10">
               <Loader2 className="animate-spin text-gray-400" />

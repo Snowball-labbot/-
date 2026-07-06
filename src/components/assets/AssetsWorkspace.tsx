@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import dayjs from 'dayjs';
 import {
   ChevronDown,
   ChevronRight,
+  MoreVertical,
   Plus,
   RefreshCw,
   Search,
@@ -22,6 +22,17 @@ interface AssetsWorkspaceProps {
 type TypeFilter = 'all' | AssetType;
 
 const assetTypes = Object.values(AssetType);
+const ungroupedLabel = '未分组';
+
+function signedCny(value: number) {
+  return `${value >= 0 ? '+' : ''}${formatCny(value, 0)}`;
+}
+
+function gainClass(value: number) {
+  if (value > 0) return 'text-red-600';
+  if (value < 0) return 'text-emerald-600';
+  return 'text-ink-400';
+}
 
 export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspaceProps) {
   const { assets, removeAsset, refreshAssetPrice } = useAssetStore();
@@ -47,15 +58,15 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
       const typeAssets = filteredAssets.filter((asset) => asset.type === type);
       const groups = new Map<string, AssetItem[]>();
       typeAssets.forEach((asset) => {
-        const group = asset.group?.trim() || '未分组';
+        const group = asset.group?.trim() || ungroupedLabel;
         groups.set(group, [...(groups.get(group) || []), asset]);
       });
       return {
         type,
         assets: typeAssets,
         groups: Array.from(groups.entries()).sort(([a], [b]) => {
-          if (a === '未分组') return 1;
-          if (b === '未分组') return -1;
+          if (a === ungroupedLabel) return 1;
+          if (b === ungroupedLabel) return -1;
           return a.localeCompare(b, 'zh-CN');
         }),
         value: typeAssets.reduce((sum, asset) => sum + Number(asset.current_value_cny || 0), 0),
@@ -183,7 +194,7 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ASSET_CONFIG[section.type].color }} />
                 <span className="text-sm font-bold text-ink-900">{ASSET_CONFIG[section.type].label}</span>
                 <span className="text-xs text-ink-400">{section.assets.length} 项</span>
-                <span className="ml-auto text-sm font-bold text-ink-900">{formatCny(section.value)}</span>
+                <span className="ml-auto text-sm font-bold text-ink-900">{formatCny(section.value, 0)}</span>
                 <span className="w-14 text-right text-xs text-ink-400">
                   {totalValue > 0 ? formatPercent((section.value / totalValue) * 100, 1) : '0%'}
                 </span>
@@ -213,87 +224,87 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
 
                         {!groupCollapsed && (
                           <div className="custom-scrollbar overflow-x-auto">
-                            <table className="w-full min-w-[860px] table-fixed text-sm">
-                              <thead className="text-left text-[11px] uppercase text-ink-400">
+                            <table className="w-full min-w-[720px] table-fixed text-sm">
+                              <thead className="text-left text-[11px] uppercase tracking-wide text-ink-400">
                                 <tr>
-                                  <th className="w-[26%] px-8 py-3 font-semibold">资产</th>
-                                  <th className="w-[12%] px-4 py-3 font-semibold">市场</th>
-                                  <th className="w-[13%] px-4 py-3 text-right font-semibold">份额</th>
-                                  <th className="w-[13%] px-4 py-3 text-right font-semibold">成本 / 现价</th>
-                                  <th className="w-[17%] px-4 py-3 text-right font-semibold">当前价值</th>
-                                  <th className="w-[13%] px-4 py-3 text-right font-semibold">行情时间</th>
-                                  <th className="w-[6%] px-4 py-3 font-semibold" />
+                                  <th className="w-[48%] px-8 py-3 font-semibold">Asset</th>
+                                  <th className="w-[22%] px-4 py-3 text-right font-semibold">Cost / Gain</th>
+                                  <th className="w-[22%] px-4 py-3 text-right font-semibold">Value</th>
+                                  <th className="w-[8%] px-4 py-3 font-semibold" />
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-ink-100">
                                 {groupAssets
                                   .sort((a, b) => Number(b.current_value_cny) - Number(a.current_value_cny))
-                                  .map((asset) => (
-                                    <tr
-                                      key={asset.id}
-                                      tabIndex={0}
-                                      onClick={() => onSelectAsset(asset)}
-                                      onKeyDown={(event) => {
-                                        if (event.key === 'Enter' || event.key === ' ') onSelectAsset(asset);
-                                      }}
-                                      className="group cursor-pointer bg-white transition-colors hover:bg-brand-50/45 focus:bg-brand-50/45"
-                                    >
-                                      <td className="px-8 py-4">
-                                        <div className="truncate font-semibold text-ink-900">{asset.name}</div>
-                                        <div className="mt-1 truncate text-xs text-ink-400">
-                                          {asset.symbol || '手动记录'}
-                                        </div>
-                                      </td>
-                                      <td className="px-4 py-4 text-ink-500">
-                                        <div>{asset.market || '-'}</div>
-                                        <div className="mt-1 text-xs text-ink-300">{asset.currency}</div>
-                                      </td>
-                                      <td className="px-4 py-4 text-right font-medium text-ink-700">
-                                        {formatQuantity(asset.quantity)}
-                                      </td>
-                                      <td className="px-4 py-4 text-right text-ink-500">
-                                        <div>{formatQuantity(asset.avg_cost)}</div>
-                                        <div className="mt-1 text-xs text-ink-400">{formatQuantity(asset.current_price)}</div>
-                                      </td>
-                                      <td className="px-4 py-4 text-right">
-                                        <div className="font-bold text-ink-950">{formatCny(asset.current_value_cny)}</div>
-                                        <div className="mt-1 text-xs text-ink-400">
-                                          {totalValue > 0
-                                            ? formatPercent((Number(asset.current_value_cny) / totalValue) * 100)
-                                            : '0.00%'}
-                                        </div>
-                                      </td>
-                                      <td className="px-4 py-4 text-right text-xs text-ink-400">
-                                        {asset.price_updated_at
-                                          ? dayjs(asset.price_updated_at).format('MM-DD HH:mm')
-                                          : '手动估值'}
-                                      </td>
-                                      <td className="px-4 py-4">
-                                        <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100">
-                                          <button
-                                            type="button"
-                                            title="刷新行情"
-                                            disabled={!asset.symbol || !asset.market || refreshingId === asset.id}
-                                            onClick={(event) => handleRefresh(event, asset)}
-                                            className="rounded p-1.5 text-ink-400 hover:bg-white hover:text-brand-600 disabled:opacity-30"
-                                          >
-                                            <RefreshCw
-                                              size={15}
-                                              className={refreshingId === asset.id ? 'animate-spin' : ''}
-                                            />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            title="删除资产"
-                                            onClick={(event) => handleDelete(event, asset)}
-                                            className="rounded p-1.5 text-ink-400 hover:bg-white hover:text-red-600"
-                                          >
-                                            <Trash2 size={15} />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  .map((asset) => {
+                                    const costCny = Number(asset.quantity || 0)
+                                      * Number(asset.avg_cost || 0)
+                                      * Number(asset.exchange_rate_to_cny || 1);
+                                    const gainCny = Number(asset.unrealized_gain_cny || 0);
+                                    const gainPct = Number(asset.unrealized_gain_pct || 0);
+                                    const valuePct = totalValue > 0
+                                      ? (Number(asset.current_value_cny) / totalValue) * 100
+                                      : 0;
+                                    const identity = [
+                                      asset.symbol || '手动记录',
+                                      `${formatQuantity(asset.quantity)} 份`,
+                                    ].filter(Boolean).join(' · ');
+
+                                    return (
+                                      <tr
+                                        key={asset.id}
+                                        tabIndex={0}
+                                        onClick={() => onSelectAsset(asset)}
+                                        onKeyDown={(event) => {
+                                          if (event.key === 'Enter' || event.key === ' ') onSelectAsset(asset);
+                                        }}
+                                        className="group cursor-pointer bg-white transition-colors hover:bg-brand-50/45 focus:bg-brand-50/45"
+                                      >
+                                        <td className="px-8 py-3.5">
+                                          <div className="truncate font-semibold text-ink-950">{asset.name}</div>
+                                          <div className="mt-1 truncate text-xs text-ink-400">{identity}</div>
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right">
+                                          <div className="text-sm text-ink-500">
+                                            <span className="text-ink-400">In</span>{' '}
+                                            <span className="font-semibold text-ink-800">{formatCny(costCny, 0)}</span>
+                                          </div>
+                                          <div className={`mt-1 text-xs font-semibold ${gainClass(gainCny)}`}>
+                                            {signedCny(gainCny)} · {formatPercent(gainPct, 1)}
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right">
+                                          <div className="font-bold text-ink-950">{formatCny(asset.current_value_cny, 0)}</div>
+                                          <div className="mt-1 text-xs text-ink-400">{formatPercent(valuePct, 1)}</div>
+                                        </td>
+                                        <td className="px-4 py-3.5">
+                                          <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100">
+                                            <button
+                                              type="button"
+                                              title="刷新行情"
+                                              disabled={!asset.symbol || !asset.market || refreshingId === asset.id}
+                                              onClick={(event) => handleRefresh(event, asset)}
+                                              className="rounded p-1.5 text-ink-400 hover:bg-white hover:text-brand-600 disabled:opacity-30"
+                                            >
+                                              <RefreshCw
+                                                size={15}
+                                                className={refreshingId === asset.id ? 'animate-spin' : ''}
+                                              />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              title="删除资产"
+                                              onClick={(event) => handleDelete(event, asset)}
+                                              className="rounded p-1.5 text-ink-400 hover:bg-white hover:text-red-600"
+                                            >
+                                              <Trash2 size={15} />
+                                            </button>
+                                            <MoreVertical size={15} className="mt-1.5 text-ink-300" />
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                               </tbody>
                             </table>
                           </div>
