@@ -16,9 +16,10 @@ type MarketCode = 'CN' | 'US' | 'KR';
 function inferMarket(value: string, type: AssetType): MarketCode {
   const text = value.trim();
   if (/\.(KS|KQ)$/i.test(text)) return 'KR';
-  if (type === AssetType.STOCK && /^\d{6}$/.test(text)) return 'KR';
-  if (type === AssetType.FUND || type === AssetType.BOND) return 'CN';
+  if (/^[A-Z]{1,6}$/i.test(text)) return 'US';
+  if (type === AssetType.STOCK && /^0\d{5}$/.test(text)) return 'KR';
   if (/^\d{5,6}$/.test(text)) return 'CN';
+  if (type === AssetType.FUND || type === AssetType.BOND) return 'CN';
   return 'US';
 }
 
@@ -91,8 +92,8 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
     setName(quote.name);
     setCurrency(quote.currency || (nextMarket === 'US' ? 'USD' : nextMarket === 'KR' ? 'KRW' : 'CNY'));
     setType((previousType) => {
-      if (nextMarket === 'US' || nextMarket === 'KR') return AssetType.STOCK;
       if (previousType === AssetType.BOND) return AssetType.BOND;
+      if (nextMarket === 'US' || nextMarket === 'KR') return AssetType.STOCK;
       return AssetType.FUND;
     });
 
