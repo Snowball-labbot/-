@@ -220,15 +220,15 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
           <div className="mt-4 font-display text-[clamp(2.1rem,4vw,3.55rem)] font-semibold leading-none text-ink-950">
             {formatCompactCny(totalValue)}
           </div>
-          <div className={`mt-3 text-sm font-semibold ${totalGainClass}`}>
-            总盈亏 {totalGain >= 0 ? '+' : ''}{formatCny(totalGain, 0)}
-            <span className="mx-1 text-ink-300">·</span>
-            {totalGain >= 0 ? '+' : ''}{formatPercent(totalGainPct, 1)}
-          </div>
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-400">
             <span>{assets.length} 个持仓</span>
             <span>{pricedAssets} 个已绑定行情</span>
             <span>{lastUpdated ? `更新于 ${dayjs(lastUpdated).format('MM-DD HH:mm')}` : '等待首次行情更新'}</span>
+          </div>
+          <div className={`mt-3 text-sm font-semibold ${totalGainClass}`}>
+            总盈亏 {totalGain >= 0 ? '+' : ''}{formatCny(totalGain, 0)}
+            <span className="mx-1 text-ink-300">·</span>
+            {totalGain >= 0 ? '+' : ''}{formatPercent(totalGainPct, 1)}
           </div>
         </div>
 
@@ -240,15 +240,15 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="rounded-md bg-ink-50/70 p-3">
               <div className="text-[11px] text-ink-400">可投资资产</div>
-              <div className="mt-1 text-xl font-semibold text-ink-950">{formatCny(investableValue)}</div>
+              <div className="mt-1 text-xl font-semibold tabular-nums text-ink-950">{formatCny(investableValue)}</div>
             </div>
             <div className="rounded-md bg-ink-50/70 p-3">
               <div className="text-[11px] text-ink-400">现金</div>
-              <div className="mt-1 text-base font-semibold text-ink-800">{formatCny(cashValue)}</div>
+              <div className="mt-1 text-xl font-semibold tabular-nums text-ink-950">{formatCny(cashValue)}</div>
             </div>
             <div className="col-span-2 rounded-md bg-ink-50/70 p-3">
               <div className="text-[11px] text-ink-400">记录成本</div>
-              <div className="mt-1 text-base font-semibold text-ink-800">{formatCny(totalCost)}</div>
+              <div className="mt-1 text-xl font-semibold tabular-nums text-ink-950">{formatCny(totalCost)}</div>
             </div>
           </div>
           <button

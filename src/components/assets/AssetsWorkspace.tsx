@@ -195,9 +195,9 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ASSET_CONFIG[section.type].color }} />
                 <span className="text-sm font-bold text-ink-900">{ASSET_CONFIG[section.type].label}</span>
                 <span className="text-xs text-ink-400">{section.assets.length} 项</span>
-                <span className="ml-auto text-right">
-                  <span className="block text-sm font-bold text-ink-900">{formatCny(section.value, 0)}</span>
-                  <span className={`mt-0.5 block text-xs font-semibold ${gainClass(section.gain)}`}>
+                <span className="ml-auto flex min-w-[190px] items-baseline justify-end gap-4 text-right">
+                  <span className="text-sm font-bold text-ink-900">{formatCny(section.value, 0)}</span>
+                  <span className={`text-xs font-semibold ${gainClass(section.gain)}`}>
                     {signedCny(section.gain)}
                   </span>
                 </span>
@@ -229,9 +229,9 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                           {groupCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                           <span className="font-semibold text-ink-600">{groupName}</span>
                           <span className="text-ink-400">{groupAssets.length}</span>
-                          <span className="ml-auto text-right">
-                            <span className="block font-semibold text-ink-600">{formatCny(groupTotal, 0)}</span>
-                            <span className={`mt-0.5 block font-semibold ${gainClass(groupGain)}`}>
+                          <span className="ml-auto flex min-w-[170px] items-baseline justify-end gap-3 text-right">
+                            <span className="font-semibold text-ink-600">{formatCny(groupTotal, 0)}</span>
+                            <span className={`font-semibold ${gainClass(groupGain)}`}>
                               {signedCny(groupGain)}
                             </span>
                           </span>
