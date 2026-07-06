@@ -149,7 +149,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-canvas text-ink-950">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[200px] flex-col border-r border-ink-100 bg-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[230px] flex-col border-r border-ink-100 bg-white lg:flex">
         {sidebar}
       </aside>
 
@@ -175,7 +175,7 @@ export function AppShell({
         </div>
       )}
 
-      <div className="lg:pl-[200px]">
+      <div className="lg:pl-[230px]">
         <header className="sticky top-0 z-20 flex min-h-[72px] items-center gap-4 border-b border-ink-100 bg-white/95 px-4 backdrop-blur md:px-5">
           <button
             type="button"

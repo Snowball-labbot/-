@@ -314,7 +314,7 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
         </div>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
+      <div className="grid gap-5">
         <section className="rounded-lg border border-ink-100 bg-white">
           <div className="border-b border-ink-100 px-5 py-4 md:px-6">
             <h2 className="text-base font-bold text-ink-900">资产配置</h2>
