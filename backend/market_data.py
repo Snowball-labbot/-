@@ -12,6 +12,15 @@ class MarketDataError(RuntimeError):
 
 EASTMONEY_UT = "bd1d9ddb04089700cf9c27f6f7426281"
 REQUEST_TIMEOUT_SECONDS = 8
+REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/126.0 Safari/537.36"
+    )
+}
+DEFAULT_USD_CNY_RATE = Decimal("7.20")
+DEFAULT_KRW_CNY_RATE = Decimal("0.0052")
 
 
 def _akshare():
@@ -32,7 +41,7 @@ def _yfinance():
 
 def _request_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
     try:
-        response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
+        response = requests.get(url, params=params, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT_SECONDS)
         response.raise_for_status()
         return response.json()
     except Exception as exc:
@@ -343,7 +352,38 @@ def get_usd_cny_rate() -> Decimal:
     except Exception:
         pass
 
-    return _akshare_usd_cny_rate()
+    try:
+        yf = _yfinance()
+        ticker = yf.Ticker("USDCNY=X")
+        fast_info: Any = {}
+        try:
+            fast_info = ticker.fast_info
+        except Exception:
+            fast_info = {}
+        info: dict[str, Any] = {}
+        try:
+            info = ticker.info or {}
+        except Exception:
+            info = {}
+        price = _first_value(
+            fast_info,
+            "last_price",
+            "lastPrice",
+            "regular_market_price",
+            "regularMarketPrice",
+            "previous_close",
+            "previousClose",
+        )
+        if price is None:
+            price = _first_value(info, "regularMarketPrice", "currentPrice", "previousClose")
+        return _to_decimal(price)
+    except Exception:
+        pass
+
+    try:
+        return _akshare_usd_cny_rate()
+    except Exception:
+        return DEFAULT_USD_CNY_RATE
 
 
 def get_krw_cny_rate() -> Decimal:
@@ -372,8 +412,8 @@ def get_krw_cny_rate() -> Decimal:
         if price is None:
             price = _first_value(info, "regularMarketPrice", "currentPrice", "previousClose")
         return _to_decimal(price)
-    except Exception as exc:
-        raise MarketDataError("Unable to fetch KRW/CNY rate") from exc
+    except Exception:
+        return DEFAULT_KRW_CNY_RATE
 
 
 def _akshare_usd_cny_rate() -> Decimal:
@@ -433,14 +473,16 @@ def _fund_name_records() -> list[dict[str, Any]]:
 
 
 def get_us_stock_quote(symbol: str) -> dict[str, Any]:
+    yahoo_error_detail = ""
     try:
         return _quote_from_yahoo_ticker(symbol, "US")
     except Exception as yahoo_error:
-        pass
+        yahoo_error_detail = str(yahoo_error)
 
     try:
         return _eastmoney_us_quote(symbol)
     except Exception as eastmoney_error:
+        eastmoney_error_detail = str(eastmoney_error)
         target = _clean_us_symbol(symbol)
         code_key = "\u4ee3\u7801"
         name_key = "\u540d\u79f0"
@@ -464,7 +506,10 @@ def get_us_stock_quote(symbol: str) -> dict[str, Any]:
                         "quote_source": "akshare:stock_us_spot_em",
                     }
         except Exception as akshare_error:
-            raise MarketDataError(f"{yahoo_error}; {eastmoney_error}; {akshare_error}") from akshare_error
+            detail = "; ".join(
+                item for item in [yahoo_error_detail, eastmoney_error_detail, str(akshare_error)] if item
+            )
+            raise MarketDataError(f"US stock quote temporarily unavailable for {symbol}: {detail}") from akshare_error
         raise MarketDataError(f"No US stock quote found for {symbol}")
 
 
@@ -501,10 +546,35 @@ def search_instrument(query: str, market: str = "CN") -> list[dict[str, Any]]:
         yahoo_results = _yahoo_search(q, "US")
         if yahoo_results:
             return yahoo_results
-        return _eastmoney_search_us(q)
+        try:
+            return _eastmoney_search_us(q)
+        except MarketDataError:
+            if q.replace(".", "").isalnum():
+                symbol = _clean_us_symbol(q)
+                return [{
+                    "symbol": symbol,
+                    "name": symbol,
+                    "market": "US",
+                    "kind": "stock",
+                    "currency": "USD",
+                    "quote_source": "manual:fallback",
+                }]
+            raise
 
     if market == "KR":
-        return _yahoo_search(q, "KR")
+        results = _yahoo_search(q, "KR")
+        if results:
+            return results
+        if q.replace(".", "").isdigit() and len(q.split(".")[0]) == 6:
+            return [{
+                "symbol": _normalize_yahoo_symbol(q, "KR"),
+                "name": q.upper(),
+                "market": "KR",
+                "kind": "stock",
+                "currency": "KRW",
+                "quote_source": "manual:fallback",
+            }]
+        return []
 
     results = _eastmoney_fund_search(q)
     if results:
