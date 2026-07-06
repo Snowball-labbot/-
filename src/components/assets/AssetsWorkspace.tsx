@@ -70,6 +70,7 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
           return a.localeCompare(b, 'zh-CN');
         }),
         value: typeAssets.reduce((sum, asset) => sum + Number(asset.current_value_cny || 0), 0),
+        gain: typeAssets.reduce((sum, asset) => sum + Number(asset.unrealized_gain_cny || 0), 0),
       };
     })
     .filter((section) => section.assets.length > 0), [filteredAssets]);
@@ -194,7 +195,12 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ASSET_CONFIG[section.type].color }} />
                 <span className="text-sm font-bold text-ink-900">{ASSET_CONFIG[section.type].label}</span>
                 <span className="text-xs text-ink-400">{section.assets.length} 项</span>
-                <span className="ml-auto text-sm font-bold text-ink-900">{formatCny(section.value, 0)}</span>
+                <span className="ml-auto text-right">
+                  <span className="block text-sm font-bold text-ink-900">{formatCny(section.value, 0)}</span>
+                  <span className={`mt-0.5 block text-xs font-semibold ${gainClass(section.gain)}`}>
+                    {signedCny(section.gain)}
+                  </span>
+                </span>
                 <span className="w-14 text-right text-xs text-ink-400">
                   {totalValue > 0 ? formatPercent((section.value / totalValue) * 100, 1) : '0%'}
                 </span>
@@ -209,6 +215,10 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                       (sum, asset) => sum + Number(asset.current_value_cny || 0),
                       0,
                     );
+                    const groupGain = groupAssets.reduce(
+                      (sum, asset) => sum + Number(asset.unrealized_gain_cny || 0),
+                      0,
+                    );
                     return (
                       <div key={groupName} className="border-b border-ink-100 last:border-b-0">
                         <button
@@ -219,7 +229,12 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                           {groupCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                           <span className="font-semibold text-ink-600">{groupName}</span>
                           <span className="text-ink-400">{groupAssets.length}</span>
-                          <span className="ml-auto font-semibold text-ink-600">{formatCny(groupTotal, 0)}</span>
+                          <span className="ml-auto text-right">
+                            <span className="block font-semibold text-ink-600">{formatCny(groupTotal, 0)}</span>
+                            <span className={`mt-0.5 block font-semibold ${gainClass(groupGain)}`}>
+                              {signedCny(groupGain)}
+                            </span>
+                          </span>
                         </button>
 
                         {!groupCollapsed && (

@@ -44,6 +44,9 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
     (sum, asset) => sum + Number(asset.quantity || 0) * Number(asset.avg_cost || 0) * Number(asset.exchange_rate_to_cny || 1),
     0,
   ));
+  const totalGain = Number(summary?.unrealized_gain_cny ?? (totalValue - totalCost));
+  const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
+  const totalGainClass = totalGain > 0 ? 'text-red-600' : totalGain < 0 ? 'text-emerald-600' : 'text-ink-400';
   const pricedAssets = assets.filter((asset) => asset.price_updated_at).length;
   const investableValue = assets
     .filter((asset) => asset.type !== AssetType.PROPERTY)
@@ -216,6 +219,11 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
           </div>
           <div className="mt-4 font-display text-[clamp(2.1rem,4vw,3.55rem)] font-semibold leading-none text-ink-950">
             {formatCompactCny(totalValue)}
+          </div>
+          <div className={`mt-3 text-sm font-semibold ${totalGainClass}`}>
+            总盈亏 {totalGain >= 0 ? '+' : ''}{formatCny(totalGain, 0)}
+            <span className="mx-1 text-ink-300">·</span>
+            {totalGain >= 0 ? '+' : ''}{formatPercent(totalGainPct, 1)}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-400">
             <span>{assets.length} 个持仓</span>
