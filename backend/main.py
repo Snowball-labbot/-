@@ -5,15 +5,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .database import Base, engine
+from .database import Base, SessionLocal, engine
 from .market_refresh import market_refresh_loop
 from .migrations import ensure_lightweight_migrations
-from .routers import admin, ai, analytics, auth, holdings, market, portfolio_backup
+from .services import backfill_cost_bases
+from .routers import admin, ai, analytics, auth, holdings, market, market_observation, portfolio_backup, portfolio_insights, research, transfers
 
 
 def create_app() -> FastAPI:
     Base.metadata.create_all(bind=engine)
     ensure_lightweight_migrations(engine)
+    with SessionLocal() as db:
+        backfill_cost_bases(db)
     settings = get_settings()
     app = FastAPI(title="Asset Manager API")
     app.add_middleware(
@@ -27,9 +30,13 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(ai.router)
     app.include_router(holdings.router)
+    app.include_router(transfers.router)
     app.include_router(market.router)
     app.include_router(analytics.router)
     app.include_router(portfolio_backup.router)
+    app.include_router(portfolio_insights.router)
+    app.include_router(research.router)
+    app.include_router(market_observation.router)
 
     @app.get("/api/health")
     def health() -> dict:

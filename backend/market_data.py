@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from functools import lru_cache
 from typing import Any
@@ -21,6 +21,7 @@ REQUEST_HEADERS = {
 }
 DEFAULT_USD_CNY_RATE = Decimal("7.20")
 DEFAULT_KRW_CNY_RATE = Decimal("0.0052")
+DEFAULT_HKD_CNY_RATE = Decimal("0.92")
 
 
 def _akshare():
@@ -100,6 +101,8 @@ def _normalize_yahoo_symbol(symbol: str, market: str) -> str:
             return text
         if text.isdigit() and len(text) == 6:
             return f"{text}.KS"
+    if market in {"LSE", "UK", "LON"} and not text.endswith(".L"):
+        return f"{text}.L"
     return text
 
 
@@ -156,7 +159,7 @@ def _quote_from_yahoo_ticker(symbol: str, market: str) -> dict[str, Any]:
     elif currency.upper() == "KRW":
         exchange_rate = get_krw_cny_rate()
     elif currency.upper() != "CNY":
-        raise MarketDataError(f"Unsupported Yahoo quote currency: {currency}")
+        exchange_rate, _ = get_currency_cny_rate(currency)
 
     return {
         "symbol": ticker_symbol,
@@ -416,6 +419,46 @@ def get_krw_cny_rate() -> Decimal:
         return DEFAULT_KRW_CNY_RATE
 
 
+def get_currency_cny_rate(currency: str) -> tuple[Decimal, str]:
+    code = currency.strip().upper()
+    if code == "CNY":
+        return Decimal("1"), "fixed:CNY"
+    if code == "USD":
+        return get_usd_cny_rate(), "market:USD/CNY"
+    if code == "KRW":
+        return get_krw_cny_rate(), "yahoo:KRWCNY=X"
+
+    try:
+        yf = _yfinance()
+        ticker = yf.Ticker(f"{code}CNY=X")
+        fast_info: Any = {}
+        try:
+            fast_info = ticker.fast_info
+        except Exception:
+            fast_info = {}
+        info: dict[str, Any] = {}
+        try:
+            info = ticker.info or {}
+        except Exception:
+            info = {}
+        price = _first_value(
+            fast_info,
+            "last_price",
+            "lastPrice",
+            "regular_market_price",
+            "regularMarketPrice",
+            "previous_close",
+            "previousClose",
+        )
+        if price is None:
+            price = _first_value(info, "regularMarketPrice", "currentPrice", "previousClose")
+        return _to_decimal(price), f"yahoo:{code}CNY=X"
+    except Exception as exc:
+        if code == "HKD":
+            return DEFAULT_HKD_CNY_RATE, "fallback:HKD/CNY"
+        raise MarketDataError(f"Unable to fetch {code}/CNY rate") from exc
+
+
 def _akshare_usd_cny_rate() -> Decimal:
     ak = _akshare()
     code_key = "\u4ee3\u7801"
@@ -531,9 +574,91 @@ def get_quote(market: str, symbol: str, kind: str | None = None) -> dict[str, An
         return get_us_stock_quote(symbol)
     if market == "KR":
         return get_kr_stock_quote(symbol)
+    if market in {"LSE", "UK", "LON"}:
+        return _quote_from_yahoo_ticker(symbol, market)
     if market == "CN" and selected_kind in {"", "fund", "etf"}:
         return get_fund_quote(symbol)
     raise MarketDataError(f"Unsupported market/kind: {market}/{kind}")
+
+
+def _historical_fx_rate(currency: str, trade_date: date) -> tuple[Decimal, str]:
+    code = currency.upper()
+    if code == "CNY":
+        return Decimal("1"), "fixed:CNY"
+    try:
+        yf = _yfinance()
+        history = yf.Ticker(f"{code}CNY=X").history(
+            start=trade_date.isoformat(),
+            end=(trade_date + timedelta(days=1)).isoformat(),
+            auto_adjust=False,
+        )
+        if history.empty:
+            raise MarketDataError("No historical FX observation")
+        return _to_decimal(history["Close"].dropna().iloc[0]), f"yahoo:historical:{code}CNY=X"
+    except Exception as exc:
+        raise MarketDataError(f"Unable to fetch historical {code}/CNY rate for {trade_date}") from exc
+
+
+def get_historical_quote(market: str, symbol: str, kind: str, trade_date: date) -> dict[str, Any]:
+    market = market.upper()
+    selected_kind = kind.lower()
+    if market == "CN" and selected_kind in {"fund", "etf"}:
+        try:
+            frame = _akshare().fund_open_fund_info_em(symbol=symbol, indicator="单位净值走势")
+            date_column = next(column for column in frame.columns if "日期" in str(column))
+            value_column = next(column for column in frame.columns if "单位净值" in str(column))
+            frame[date_column] = frame[date_column].astype(str)
+            rows = frame[frame[date_column] <= trade_date.isoformat()]
+            if rows.empty:
+                raise MarketDataError("No fund NAV on or before the selected date")
+            row = rows.iloc[-1]
+            observation_date = date.fromisoformat(str(row[date_column])[:10])
+            return {
+                "symbol": symbol,
+                "name": symbol,
+                "market": "CN",
+                "kind": "fund",
+                "currency": "CNY",
+                "price": _to_decimal(row[value_column]),
+                "exchange_rate_to_cny": Decimal("1"),
+                "price_updated_at": datetime.combine(observation_date, datetime.min.time(), tzinfo=timezone.utc),
+                "quote_source": "akshare:historical_fund_nav",
+            }
+        except Exception as exc:
+            if isinstance(exc, MarketDataError):
+                raise
+            raise MarketDataError(f"Unable to fetch historical fund NAV for {symbol}") from exc
+
+    if market not in {"US", "KR"}:
+        raise MarketDataError(f"Historical quote is not supported for {market}/{kind}")
+    try:
+        yf = _yfinance()
+        yahoo_symbol = _normalize_yahoo_symbol(symbol, market)
+        history = yf.Ticker(yahoo_symbol).history(
+            start=trade_date.isoformat(),
+            end=(trade_date + timedelta(days=1)).isoformat(),
+            auto_adjust=False,
+        )
+        if history.empty:
+            raise MarketDataError("No market close on the selected date")
+        price = _to_decimal(history["Close"].dropna().iloc[0])
+        currency = "KRW" if market == "KR" else "USD"
+        fx_rate, fx_source = _historical_fx_rate(currency, trade_date)
+        return {
+            "symbol": symbol.upper(),
+            "name": symbol.upper(),
+            "market": market,
+            "kind": selected_kind or "stock",
+            "currency": currency,
+            "price": price,
+            "exchange_rate_to_cny": fx_rate,
+            "price_updated_at": datetime.combine(trade_date, datetime.min.time(), tzinfo=timezone.utc),
+            "quote_source": f"yahoo:historical_close+{fx_source}",
+        }
+    except Exception as exc:
+        if isinstance(exc, MarketDataError):
+            raise
+        raise MarketDataError(f"Unable to fetch historical quote for {symbol} on {trade_date}") from exc
 
 
 def search_instrument(query: str, market: str = "CN") -> list[dict[str, Any]]:

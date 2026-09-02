@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { api } from '@/lib/api';
 import { Mail, Lock, Ticket, AlertCircle, Eye, EyeOff, CheckCircle, Loader2 } from 'lucide-react';
 
 const text = {
   loginTitle: '\u767b\u5f55\u8d26\u6237',
-  registerTitle: '\u9080\u8bf7\u6ce8\u518c',
+  registerTitle: '\u672c\u5730\u6ce8\u518c',
   loginSubtitle: '\u6b22\u8fce\u56de\u6765\uff0c\u8bf7\u767b\u5f55\u4ee5\u7ba1\u7406\u60a8\u7684\u8d44\u4ea7',
-  registerSubtitle: '\u8f93\u5165\u7ba1\u7406\u5458\u53d1\u653e\u7684\u9080\u8bf7\u7801\u521b\u5efa\u8d26\u6237',
+  registerSubtitle: '\u521b\u5efa\u4f60\u81ea\u5df1\u7684\u8d26\u6237\uff0c\u8d44\u4ea7\u6570\u636e\u4ec5\u4fdd\u5b58\u5728\u5f53\u524d\u5b9e\u4f8b',
   email: '\u90ae\u7bb1\u5730\u5740',
   password: '\u5bc6\u7801 (\u81f3\u5c118\u4f4d)',
   confirmPassword: '\u786e\u8ba4\u5bc6\u7801',
@@ -16,12 +17,12 @@ const text = {
   inviteRequired: '\u8bf7\u8f93\u5165\u9080\u8bf7\u7801',
   registerSuccess: '\u6ce8\u518c\u6210\u529f\uff0c\u5df2\u4e3a\u60a8\u767b\u5f55\u3002',
   unknownError: '\u53d1\u751f\u672a\u77e5\u9519\u8bef',
-  resetHint: '\u7b2c\u4e00\u7248\u6682\u4e0d\u63d0\u4f9b\u627e\u56de\u5bc6\u7801\uff0c\u8bf7\u901a\u8fc7\u7ba1\u7406\u5458\u91cd\u7f6e\u3002',
+  resetHint: '\u5f53\u524d\u7248\u672c\u6682\u4e0d\u63d0\u4f9b\u90ae\u4ef6\u627e\u56de\u5bc6\u7801\uff0c\u8bf7\u59a5\u5584\u4fdd\u7ba1\u672c\u5730\u8d26\u53f7\u3002',
   loginButton: '\u767b\u5f55',
   registerButton: '\u6ce8\u518c\u5e76\u767b\u5f55',
   showPassword: '\u663e\u793a\u5bc6\u7801',
   hidePassword: '\u9690\u85cf\u5bc6\u7801',
-  switchToRegister: '\u6709\u9080\u8bf7\u7801? \u521b\u5efa\u8d26\u6237',
+  switchToRegister: '\u6ca1\u6709\u8d26\u6237? \u672c\u5730\u6ce8\u518c',
   switchToLogin: '\u5df2\u6709\u8d26\u6237? \u7acb\u5373\u767b\u5f55',
 };
 
@@ -35,7 +36,14 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [openRegistration, setOpenRegistration] = useState(true);
   const { login, register } = useAuthStore();
+
+  useEffect(() => {
+    api.authConfig()
+      .then((config) => setOpenRegistration(config.allow_open_registration))
+      .catch(() => setOpenRegistration(true));
+  }, []);
 
   const handleAuth = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -51,7 +59,7 @@ export default function AuthPage() {
         setError(text.passwordTooShort);
         return;
       }
-      if (!inviteCode.trim()) {
+      if (!openRegistration && !inviteCode.trim()) {
         setError(text.inviteRequired);
         return;
       }
@@ -130,7 +138,7 @@ export default function AuthPage() {
                     onChange={(event) => setConfirmPassword(event.target.value)}
                   />
                 </div>
-                <div className="relative">
+                {!openRegistration && <div className="relative">
                   <Ticket className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                   <input
                     required
@@ -139,7 +147,7 @@ export default function AuthPage() {
                     value={inviteCode}
                     onChange={(event) => setInviteCode(event.target.value)}
                   />
-                </div>
+                </div>}
               </>
             )}
           </div>

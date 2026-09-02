@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .field {
+    @apply h-10 w-full rounded-md border border-ink-200 bg-white px-3 text-sm font-normal text-ink-800 outline-none transition-colors placeholder:text-ink-300 focus:border-brand-500;
+  }
+}
+
 :root {
   font-family: "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
   line-height: 1.5;

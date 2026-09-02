@@ -1,31 +1,47 @@
 import { create } from 'zustand';
 import { api, getErrorMessage } from '@/lib/api';
-import { AssetItem, AssetType, HoldingCreateInput, HoldingUpdateInput, Summary, TransactionCreateInput, TransactionItem, TrendPoint } from '@/types';
+import {
+  AssetItem,
+  AssetType,
+  CashTransferInput,
+  HoldingCreateInput,
+  HoldingUpdateInput,
+  PortfolioImportResult,
+  Summary,
+  TransactionCreateInput,
+  TransactionItem,
+  TrendPoint,
+} from '@/types';
 
 interface AssetState {
   assets: AssetItem[];
+  archivedAssets: AssetItem[];
   transactionsByAsset: Record<string, TransactionItem[]>;
   summary: Summary | null;
   loading: boolean;
   error: string | null;
   loadAssets: () => Promise<void>;
+  loadArchivedAssets: () => Promise<void>;
   loadSummary: () => Promise<void>;
   addAsset: (asset: HoldingCreateInput) => Promise<void>;
   updateAsset: (id: string, changes: HoldingUpdateInput) => Promise<void>;
   removeAsset: (id: string) => Promise<void>;
+  restoreAsset: (id: string) => Promise<void>;
   removeGroup: (type: AssetType, groupName: string) => Promise<void>;
   loadTransactions: (holdingId: string) => Promise<void>;
   addTransaction: (holdingId: string, transaction: TransactionCreateInput) => Promise<void>;
+  transferCash: (transfer: CashTransferInput) => Promise<void>;
   refreshAssetPrice: (holdingId: string) => Promise<void>;
   getTrend: (range: 'week' | 'month' | 'year') => Promise<TrendPoint[]>;
   getHoldingTrend: (holdingId: string, range: 'week' | 'month' | 'year') => Promise<TrendPoint[]>;
   exportCurrentAssets: () => Promise<void>;
-  importAssetBackup: (file: File) => Promise<number>;
+  importAssetBackup: (file: File) => Promise<PortfolioImportResult>;
   removeHistory: (historyId: string) => void;
 }
 
 export const useAssetStore = create<AssetState>((set, get) => ({
   assets: [],
+  archivedAssets: [],
   transactionsByAsset: {},
   summary: null,
   loading: false,
@@ -43,6 +59,10 @@ export const useAssetStore = create<AssetState>((set, get) => ({
   loadSummary: async () => {
     const summary = await api.summary();
     set({ summary });
+  },
+  loadArchivedAssets: async () => {
+    const all = await api.holdings(true);
+    set({ archivedAssets: all.filter((asset) => asset.archived_at) });
   },
   addAsset: async (asset) => {
     await api.createHolding(asset);
@@ -63,6 +83,11 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       };
     });
     await get().loadSummary();
+    await get().loadArchivedAssets();
+  },
+  restoreAsset: async (id) => {
+    await api.restoreHolding(id);
+    await Promise.all([get().loadAssets(), get().loadArchivedAssets()]);
   },
   removeGroup: async (type, groupName) => {
     const targets = get().assets.filter((asset) => asset.type === type && asset.group === groupName);
@@ -81,6 +106,14 @@ export const useAssetStore = create<AssetState>((set, get) => ({
   addTransaction: async (holdingId, transaction) => {
     await api.createTransaction(holdingId, transaction);
     await Promise.all([get().loadAssets(), get().loadTransactions(holdingId)]);
+  },
+  transferCash: async (transfer) => {
+    await api.createCashTransfer(transfer);
+    await Promise.all([
+      get().loadAssets(),
+      get().loadTransactions(transfer.source_holding_id),
+      get().loadTransactions(transfer.destination_holding_id),
+    ]);
   },
   refreshAssetPrice: async (holdingId) => {
     await api.refreshHoldingPrice(holdingId);
@@ -108,9 +141,14 @@ export const useAssetStore = create<AssetState>((set, get) => ({
     if (!payload || !Array.isArray(payload.holdings)) {
       throw new Error('Invalid portfolio backup file');
     }
-    const result = await api.importPortfolio(payload);
+    const preview = await api.previewPortfolioImport(payload);
+    const confirmed = window.confirm(
+      `文件共 ${preview.total} 条资产，其中 ${preview.duplicate_count} 条疑似重复，将默认跳过；预计新增 ${preview.new_count} 条。是否继续？`,
+    );
+    if (!confirmed) throw new Error('已取消导入');
+    const result = await api.importPortfolio({ ...payload, skip_duplicates: true });
     await get().loadAssets();
-    return result.imported;
+    return result;
   },
   removeHistory: () => {
     // Transaction deletion is intentionally not exposed in v1 because it rewrites cost basis.

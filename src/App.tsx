@@ -5,22 +5,45 @@ import {
   Plus,
   Target,
   Upload,
+  Undo2,
   X,
 } from 'lucide-react';
-import { AppShell, WorkspaceView } from '@/components/layout/AppShell';
+import { AppShell, NavigableView, WorkspaceView } from '@/components/layout/AppShell';
 import { AssetsWorkspace } from '@/components/assets/AssetsWorkspace';
 import { AssetDetail } from '@/components/AssetDetail/AssetDetail';
 import { AssetInputForm } from '@/components/AssetInputForm';
 import AuthPage from '@/components/auth/AuthPage';
 import { useAssetStore } from '@/store/useAssetStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { getErrorMessage } from '@/lib/api';
+import { api, getErrorMessage } from '@/lib/api';
+import { ResearchWorkspaceShell, type ResearchWorkspaceView } from '@/components/research/ResearchWorkspaceShell';
 
 const PortfolioOverview = lazy(() => import('@/components/dashboard/PortfolioOverview').then(
   (module) => ({ default: module.PortfolioOverview }),
 ));
+const FamilySafetyPage = lazy(() => import('@/components/family/FamilySafetyPage').then(
+  (module) => ({ default: module.FamilySafetyPage }),
+));
 const StrategyWorkspace = lazy(() => import('@/components/strategy/StrategyWorkspace').then(
   (module) => ({ default: module.StrategyWorkspace }),
+));
+const ResearchDesk = lazy(() => import('@/components/research/ResearchDesk').then(
+  (module) => ({ default: module.ResearchDesk }),
+));
+const MarketObservation = lazy(() => import('@/components/research/MarketObservation').then(
+  (module) => ({ default: module.MarketObservation }),
+));
+const ResearchLibrary = lazy(() => import('@/components/research/ResearchLibrary').then(
+  (module) => ({ default: module.ResearchLibrary }),
+));
+const MacroResearchWorkspace = lazy(() => import('@/components/research/MacroResearchWorkspace').then(
+  (module) => ({ default: module.MacroResearchWorkspace }),
+));
+const IndustryResearchWorkspace = lazy(() => import('@/components/research/IndustryResearchWorkspace').then(
+  (module) => ({ default: module.IndustryResearchWorkspace }),
+));
+const QuantWorkspace = lazy(() => import('@/components/research/QuantWorkspace').then(
+  (module) => ({ default: module.QuantWorkspace }),
 ));
 
 const viewCopy: Record<WorkspaceView, { title: string; subtitle: string }> = {
@@ -31,6 +54,34 @@ const viewCopy: Record<WorkspaceView, { title: string; subtitle: string }> = {
   assets: {
     title: '资产',
     subtitle: '按类型、账户与分组管理全部持仓',
+  },
+  family: {
+    title: '家庭安全垫',
+    subtitle: '家庭保本资金与现金储备的独立低频记录',
+  },
+  research: {
+    title: '每日研究',
+    subtitle: '关键事件、观察名单和当天研究优先级',
+  },
+  market: {
+    title: '市场观察',
+    subtitle: '内部环境评分与当前社交讨论热度',
+  },
+  macro: {
+    title: '宏观研究',
+    subtitle: '以时间流和证据链记录宏观变化与资产传导',
+  },
+  industry: {
+    title: '行业研究',
+    subtitle: '从产业链到重点公司的长期研究工作区',
+  },
+  quant: {
+    title: '量化研究',
+    subtitle: '记录策略假设、实验、回测和失效条件',
+  },
+  library: {
+    title: '研究库',
+    subtitle: '收纳每日简报与待整理资料',
   },
   strategy: {
     title: '资产配置策略',
@@ -48,6 +99,7 @@ function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [lastImportBatchId, setLastImportBatchId] = useState<string>();
   const importFileRef = useRef<HTMLInputElement>(null);
   const { assets, loadAssets, exportCurrentAssets, importAssetBackup } = useAssetStore();
   const { user, loading, initialize } = useAuthStore();
@@ -59,13 +111,16 @@ function App() {
   useEffect(() => {
     if (user) {
       loadAssets().catch((error) => console.error('Load assets failed:', error));
+      api.latestPortfolioImportBatch()
+        .then((batch) => setLastImportBatchId(batch?.id))
+        .catch((error) => console.error('Load import batch failed:', error));
     }
   }, [user, loadAssets]);
 
   const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) || null;
   const totalValue = assets.reduce((sum, asset) => sum + Number(asset.current_value_cny || 0), 0);
 
-  const navigate = (nextView: 'networth' | 'assets' | 'strategy') => {
+  const navigate = (nextView: NavigableView) => {
     setSelectedAssetId(undefined);
     setView(nextView);
   };
@@ -86,13 +141,29 @@ function App() {
     if (!file) return;
     setImporting(true);
     try {
-      const count = await importAssetBackup(file);
-      alert(`已导入 ${count} 条资产。`);
+      const result = await importAssetBackup(file);
+      setLastImportBatchId(result.batch_id || undefined);
+      alert(`已导入 ${result.imported} 条资产，跳过 ${result.skipped} 条重复记录。${result.batch_id ? `\n导入批次：${result.batch_id}` : ''}`);
     } catch (error) {
-      alert(getErrorMessage(error, '导入失败，请确认文件为 portfolio_backup_v1 JSON。'));
+      alert(getErrorMessage(error, '导入失败，请确认文件为本网站导出的 portfolio_backup JSON。'));
     } finally {
       setImporting(false);
       event.target.value = '';
+    }
+  };
+
+  const handleUndoImport = async () => {
+    if (!lastImportBatchId || !window.confirm('撤销上一次导入新增的全部资产？已有资产和被跳过的重复项不会受影响。')) return;
+    setImporting(true);
+    try {
+      const result = await api.undoPortfolioImport(lastImportBatchId);
+      await loadAssets();
+      setLastImportBatchId(undefined);
+      alert(`已撤销上次导入，共移除 ${result.removed} 条新增资产。`);
+    } catch (error) {
+      alert(getErrorMessage(error, '撤销导入失败。'));
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -106,9 +177,11 @@ function App() {
 
   if (!user) return <AuthPage />;
 
+  const isPortfolioView = view === 'networth' || view === 'assets' || view === 'detail';
+
   const topActions = (
     <>
-      <button
+      {isPortfolioView && <button
         type="button"
         title="导出资产"
         onClick={handleExportAssets}
@@ -116,8 +189,8 @@ function App() {
         className="hidden h-9 w-9 items-center justify-center rounded-md border border-ink-100 bg-white text-ink-500 transition hover:border-ink-200 hover:text-ink-900 disabled:opacity-40 sm:inline-flex"
       >
         {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-      </button>
-      <button
+      </button>}
+      {isPortfolioView && <button
         type="button"
         title="导入资产"
         onClick={() => importFileRef.current?.click()}
@@ -125,7 +198,7 @@ function App() {
         className="hidden h-9 w-9 items-center justify-center rounded-md border border-ink-100 bg-white text-ink-500 transition hover:border-ink-200 hover:text-ink-900 disabled:opacity-40 sm:inline-flex"
       >
         {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-      </button>
+      </button>}
       <input
         ref={importFileRef}
         type="file"
@@ -133,7 +206,16 @@ function App() {
         className="hidden"
         onChange={handleImportFile}
       />
-      {view !== 'strategy' && (
+      {isPortfolioView && lastImportBatchId && <button
+        type="button"
+        title="撤销上次导入"
+        onClick={handleUndoImport}
+        disabled={importing}
+        className="hidden h-9 w-9 items-center justify-center rounded-md border border-ink-100 bg-white text-ink-500 transition hover:border-red-200 hover:text-red-600 disabled:opacity-40 sm:inline-flex"
+      >
+        <Undo2 size={16} />
+      </button>}
+      {isPortfolioView && (
         <button
           type="button"
           onClick={() => navigate('strategy')}
@@ -144,7 +226,7 @@ function App() {
           <span className="sm:hidden">策略</span>
         </button>
       )}
-      {view !== 'strategy' && (
+      {isPortfolioView && (
         <button
           type="button"
           aria-label="新增资产"
@@ -178,12 +260,35 @@ function App() {
         {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
         导入资产
       </button>
+      {lastImportBatchId && (
+        <button
+          type="button"
+          onClick={handleUndoImport}
+          disabled={importing}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink-200 text-xs font-semibold text-ink-600 disabled:opacity-40"
+        >
+          <Undo2 size={15} />
+          撤销上次导入
+        </button>
+      )}
     </>
   );
 
   let content;
   if (view === 'strategy') {
     content = <StrategyWorkspace />;
+  } else if (view === 'research') {
+    content = <ResearchDesk onNavigate={(nextView) => navigate(nextView)} />;
+  } else if (view === 'market') {
+    content = <MarketObservation />;
+  } else if (view === 'macro') {
+    content = <MacroResearchWorkspace />;
+  } else if (view === 'industry') {
+    content = <IndustryResearchWorkspace />;
+  } else if (view === 'quant') {
+    content = <QuantWorkspace />;
+  } else if (view === 'library') {
+    content = <ResearchLibrary scope="library" />;
   } else if (view === 'detail' && selectedAsset) {
     content = (
       <div className="h-[calc(100vh-72px)]">
@@ -206,11 +311,35 @@ function App() {
         }}
       />
     );
+  } else if (view === 'family') {
+    content = <FamilySafetyPage personalValue={totalValue} />;
   } else {
     content = <PortfolioOverview onOpenAssets={() => navigate('assets')} />;
   }
 
   const currentCopy = viewCopy[view === 'detail' && !selectedAsset ? 'assets' : view];
+  const researchViews: ResearchWorkspaceView[] = ['research', 'market', 'macro', 'industry', 'quant', 'library'];
+  const isResearchWorkspace = researchViews.includes(view as ResearchWorkspaceView);
+
+  if (isResearchWorkspace) {
+    return (
+      <ResearchWorkspaceShell
+        activeView={view as ResearchWorkspaceView}
+        onNavigate={(nextView) => navigate(nextView)}
+        onBack={() => navigate('networth')}
+      >
+        <Suspense
+          fallback={(
+            <div className="flex min-h-[520px] items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
+            </div>
+          )}
+        >
+          {content}
+        </Suspense>
+      </ResearchWorkspaceShell>
+    );
+  }
 
   return (
     <>

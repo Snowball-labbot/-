@@ -3,8 +3,9 @@ import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
 import { ArrowUpRight, BriefcaseBusiness, CalendarDays, WalletCards } from 'lucide-react';
 import { useAssetStore } from '@/store/useAssetStore';
+import { api } from '@/lib/api';
 import { ASSET_CONFIG } from '@/constants/assets';
-import { AssetItem, AssetType, TrendPoint } from '@/types';
+import { AssetItem, AssetType, PortfolioPerformance, PortfolioPerspective } from '@/types';
 import { formatCny, formatCompactCny, formatPercent } from '@/lib/format';
 import { PortfolioSankey } from './PortfolioSankey';
 
@@ -16,13 +17,17 @@ const ranges = [
   { value: 'week', label: '周' },
   { value: 'month', label: '月' },
   { value: 'year', label: '年' },
+  { value: 'all', label: '全部' },
 ] as const;
 
 interface PieTooltipParams {
   name: string;
   value: number | string;
   percent: number;
-  data: { assets: AssetItem[] };
+  data: {
+    assets?: AssetItem[];
+    contributors?: Array<{ name: string; value_cny: number }>;
+  };
 }
 
 interface AxisTooltipParams {
@@ -31,9 +36,12 @@ interface AxisTooltipParams {
 }
 
 export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
-  const { assets, summary, getTrend } = useAssetStore();
-  const [range, setRange] = useState<'week' | 'month' | 'year'>('month');
-  const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const { assets, summary } = useAssetStore();
+  const [range, setRange] = useState<'week' | 'month' | 'year' | 'all'>('month');
+  const [trendMode, setTrendMode] = useState<'value' | 'profit'>('value');
+  const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
+  const [perspective, setPerspective] = useState<PortfolioPerspective | null>(null);
+  const [allocationMode, setAllocationMode] = useState<'asset_type' | 'core' | 'region'>('asset_type');
   const [trendLoading, setTrendLoading] = useState(false);
 
   const totalValue = Number(summary?.total_value_cny ?? assets.reduce(
@@ -44,7 +52,7 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
     (sum, asset) => sum + Number(asset.quantity || 0) * Number(asset.avg_cost || 0) * Number(asset.exchange_rate_to_cny || 1),
     0,
   ));
-  const totalGain = Number(summary?.unrealized_gain_cny ?? (totalValue - totalCost));
+  const totalGain = Number(summary?.total_gain_cny ?? (totalValue - totalCost));
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
   const totalGainClass = totalGain > 0 ? 'text-red-600' : totalGain < 0 ? 'text-emerald-600' : 'text-ink-400';
   const pricedAssets = assets.filter((asset) => asset.price_updated_at).length;
@@ -63,12 +71,12 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
   useEffect(() => {
     let cancelled = false;
     setTrendLoading(true);
-    getTrend(range)
-      .then((points) => {
-        if (!cancelled) setTrend(points);
+    api.portfolioPerformance(range)
+      .then((result) => {
+        if (!cancelled) setPerformance(result);
       })
       .catch(() => {
-        if (!cancelled) setTrend([]);
+        if (!cancelled) setPerformance(null);
       })
       .finally(() => {
         if (!cancelled) setTrendLoading(false);
@@ -76,9 +84,23 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [getTrend, range]);
+  }, [range]);
 
-  const allocation = useMemo(() => {
+  useEffect(() => {
+    let cancelled = false;
+    api.portfolioPerspective()
+      .then((result) => {
+        if (!cancelled) setPerspective(result);
+      })
+      .catch(() => {
+        if (!cancelled) setPerspective(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assets]);
+
+  const assetTypeAllocation = useMemo(() => {
     const totals = new Map<AssetType, { value: number; assets: typeof assets }>();
     assets.forEach((asset) => {
       const current = totals.get(asset.type) || { value: 0, assets: [] };
@@ -97,6 +119,18 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
       .sort((a, b) => b.value - a.value);
   }, [assets]);
 
+  const allocation = useMemo(() => {
+    if (allocationMode === 'asset_type') return assetTypeAllocation;
+    const palette = ['#3559d7', '#22a079', '#d89a27', '#7a59c8', '#d06652', '#4d7f91', '#8b95a5', '#b35c8d', '#5073c7', '#5f9561', '#9a7650'];
+    const rows = perspective?.views[allocationMode] || [];
+    return rows.map((row, index) => ({
+      name: row.name,
+      value: Number(row.value_cny),
+      contributors: row.contributors,
+      itemStyle: { color: palette[index % palette.length] },
+    }));
+  }, [allocationMode, assetTypeAllocation, perspective]);
+
   const donutOption = useMemo(() => ({
     animationDuration: 560,
     animationDurationUpdate: 280,
@@ -109,11 +143,14 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
       padding: 12,
       extraCssText: 'box-shadow: 0 12px 32px rgba(11,15,21,.12); border-radius: 6px;',
       formatter: (params: PieTooltipParams) => {
-        const items = [...params.data.assets]
-          .sort((a, b) => Number(b.current_value_cny) - Number(a.current_value_cny))
+        const items = params.data.assets
+          ? [...params.data.assets].map((asset) => ({ name: asset.name, value_cny: Number(asset.current_value_cny) }))
+          : [...(params.data.contributors || [])];
+        const topItems = items
+          .sort((a, b) => Number(b.value_cny) - Number(a.value_cny))
           .slice(0, 6);
-        const rows = items.map((asset) => (
-          `<div class="chart-tooltip__row"><span>${asset.name}</span><strong>${formatCny(Number(asset.current_value_cny), 0)}</strong></div>`
+        const rows = topItems.map((item) => (
+          `<div class="chart-tooltip__row"><span>${item.name}</span><strong>${formatCny(Number(item.value_cny), 0)}</strong></div>`
         )).join('');
         return `<div class="chart-tooltip"><div class="chart-tooltip__title">${params.name} · ${params.percent}%</div><div class="chart-tooltip__row"><span>合计</span><strong>${formatCny(Number(params.value))}</strong></div>${rows}</div>`;
       },
@@ -151,7 +188,8 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
   }), [allocation, totalValue]);
 
   const trendOption = useMemo(() => {
-    const values = trend.map((point) => Number(point.value_cny || 0));
+    const points = performance?.points || [];
+    const values = points.map((point) => Number(trendMode === 'value' ? point.value_cny : point.profit_cny));
     return {
       animationDuration: 560,
       animationDurationUpdate: 260,
@@ -172,7 +210,7 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
       xAxis: {
         type: 'category',
         boundaryGap: false,
-        data: trend.map((point) => point.date),
+        data: points.map((point) => point.date),
         axisLine: { lineStyle: { color: '#d5d9df' } },
         axisTick: { show: false },
         axisLabel: { color: '#8993a1', margin: 12, formatter: (value: string) => dayjs(value).format('MM-DD') },
@@ -198,7 +236,7 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
         emphasis: { focus: 'series' },
       }],
     };
-  }, [trend]);
+  }, [performance, trendMode]);
 
   const slices = Object.values(AssetType)
     .map((type) => {
@@ -262,6 +300,22 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
         </div>
       </section>
 
+      <section className="grid overflow-hidden rounded-lg border border-ink-100 bg-white sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ['当前市值', performance?.current_value_cny ?? totalValue],
+          ['累计净投入', performance?.net_invested_cny ?? 0],
+          ['基准日起盈亏', performance?.profit_cny ?? 0],
+          ['实际收益 / 最大回撤', `${formatPercent(Number(performance?.return_pct || 0), 2)} / ${formatPercent(Number(performance?.max_drawdown_pct || 0), 2)}`],
+        ].map(([label, value], index) => (
+          <div key={String(label)} className={`px-5 py-4 ${index > 0 ? 'border-t border-ink-100 sm:border-l sm:border-t-0' : ''}`}>
+            <div className="text-[11px] text-ink-400">{label}</div>
+            <div className="mt-1 text-lg font-semibold tabular-nums text-ink-950">
+              {typeof value === 'number' ? formatCny(Number(value), 0) : value}
+            </div>
+          </div>
+        ))}
+      </section>
+
       {slices.length > 0 && (
         <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {slices.map(({ type, value }) => (
@@ -290,8 +344,13 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
             <h2 className="text-base font-bold text-ink-900">净资产趋势</h2>
             <p className="mt-1 text-xs text-ink-400">从首次记录日起，显示成本与市场价格共同形成的资产总额。</p>
           </div>
-          <div className="flex rounded-md bg-ink-50 p-1">
-            {ranges.map((item) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-md bg-ink-50 p-1">
+              <button type="button" onClick={() => setTrendMode('value')} className={`h-8 rounded px-3 text-xs font-semibold ${trendMode === 'value' ? 'bg-white text-ink-950 shadow-sm' : 'text-ink-400'}`}>组合市值</button>
+              <button type="button" onClick={() => setTrendMode('profit')} className={`h-8 rounded px-3 text-xs font-semibold ${trendMode === 'profit' ? 'bg-white text-ink-950 shadow-sm' : 'text-ink-400'}`}>投资收益</button>
+            </div>
+            <div className="flex rounded-md bg-ink-50 p-1">
+              {ranges.map((item) => (
               <button
                 key={item.value}
                 type="button"
@@ -302,7 +361,8 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
               >
                 {item.label}
               </button>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
         <div className="relative min-h-[290px] px-3 py-4 md:px-5">
@@ -312,7 +372,7 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
               加载趋势
             </div>
           )}
-          {trend.length > 0 ? (
+          {(performance?.points.length || 0) > 0 ? (
             <ReactECharts option={trendOption} notMerge lazyUpdate style={{ width: '100%', height: 310 }} />
           ) : (
             <div className="flex h-[290px] items-center justify-center text-sm text-ink-400">
@@ -324,14 +384,38 @@ export function PortfolioOverview({ onOpenAssets }: PortfolioOverviewProps) {
 
       <div className="grid gap-5">
         <section className="rounded-lg border border-ink-100 bg-white">
-          <div className="border-b border-ink-100 px-5 py-4 md:px-6">
-            <h2 className="text-base font-bold text-ink-900">资产配置</h2>
-            <p className="mt-1 text-xs text-ink-400">悬停查看分类和具体持仓金额</p>
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-100 px-5 py-4 md:px-6">
+            <div>
+              <h2 className="text-base font-bold text-ink-900">资产配置</h2>
+              <p className="mt-1 text-xs text-ink-400">在产品类型、核心暴露和地区之间切换，悬停查看金额构成。</p>
+            </div>
+            <div className="flex rounded-md bg-ink-50 p-1" aria-label="资产配置视图">
+              {[
+                { value: 'asset_type', label: '资产类型' },
+                { value: 'core', label: '核心暴露' },
+                { value: 'region', label: '地区' },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setAllocationMode(item.value as typeof allocationMode)}
+                  className={`h-8 rounded px-3 text-xs font-semibold transition ${allocationMode === item.value ? 'bg-white text-ink-950 shadow-sm' : 'text-ink-400 hover:text-ink-700'}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
-          {assets.length > 0 ? (
+          {allocation.length > 0 ? (
             <ReactECharts option={donutOption} notMerge lazyUpdate style={{ width: '100%', height: 340 }} />
           ) : (
             <div className="flex h-[340px] items-center justify-center text-sm text-ink-400">暂无资产数据</div>
+          )}
+          {allocationMode !== 'asset_type' && perspective && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-5 py-3 text-[11px] text-ink-400 md:px-6">
+              <span>未分类 {Number(perspective.unclassified_pct || 0).toFixed(1)}%</span>
+              <span>{perspective.source} · 数据日期 {perspective.as_of_date}</span>
+            </div>
           )}
         </section>
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, Search, X } from 'lucide-react';
 import { useAssetStore } from '@/store/useAssetStore';
 import { ASSET_CONFIG } from '@/constants/assets';
-import { AssetType, MarketInstrument } from '@/types';
+import { AssetType, FlowClass, MarketInstrument } from '@/types';
 import { cn } from '@/lib/utils';
 import { api, getErrorMessage } from '@/lib/api';
 
@@ -46,10 +46,12 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
   const [currency, setCurrency] = useState('CNY');
   const [exchangeRate, setExchangeRate] = useState('1');
   const [fee, setFee] = useState('0');
+  const [flowClass, setFlowClass] = useState<FlowClass>('opening_balance');
   const [candidates, setCandidates] = useState<MarketInstrument[]>([]);
   const [searching, setSearching] = useState(false);
   const [quoteMessage, setQuoteMessage] = useState('');
   const [error, setError] = useState('');
+  const isCash = type === AssetType.CASH;
 
   const existingGroups = useMemo(() => Array.from(new Set(
     assets.filter((asset) => asset.type === type && asset.group).map((asset) => asset.group as string)
@@ -141,11 +143,22 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
     }
   };
 
+  const refreshCashRate = async () => {
+    if (!isCash) return;
+    try {
+      const quote = await api.fxRate(currency);
+      setExchangeRate(String(quote.exchange_rate_to_cny));
+      setQuoteMessage(`已同步 ${quote.currency}/CNY 汇率`);
+    } catch (err: unknown) {
+      setQuoteMessage(getErrorMessage(err, '汇率同步失败，可以继续手动填写'));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const numQuantity = parseFloat(quantity);
-    const buyPrice = parseFloat(unitPrice || latestPrice);
-    const currentPrice = parseFloat(latestPrice || unitPrice);
+    const buyPrice = isCash ? 1 : parseFloat(unitPrice || latestPrice);
+    const currentPrice = isCash ? 1 : parseFloat(latestPrice || unitPrice);
     const numFee = parseFloat(fee || '0');
     const numExchangeRate = parseFloat(exchangeRate || '1');
 
@@ -159,14 +172,15 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
         type,
         name: name || symbol || `${ASSET_CONFIG[type].label}持仓`,
         group: group || undefined,
-        market: symbol ? market : undefined,
-        symbol: symbol || undefined,
+        market: !isCash && symbol ? market : undefined,
+        symbol: !isCash ? symbol || undefined : undefined,
         currency: currency.toUpperCase(),
         quantity: numQuantity,
         unit_price: buyPrice,
         current_price: currentPrice,
         fee: isNaN(numFee) ? 0 : numFee,
         exchange_rate_to_cny: numExchangeRate,
+        flow_class: flowClass,
       });
     } catch (err: unknown) {
       setError(getErrorMessage(err, '添加资产失败'));
@@ -182,6 +196,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
     setCurrency('CNY');
     setExchangeRate('1');
     setFee('0');
+    setFlowClass('opening_balance');
     setCandidates([]);
     setQuoteMessage('');
     setError('');
@@ -206,6 +221,12 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                     setMarket('US');
                     setCurrency('USD');
                   }
+                  if (nextType === AssetType.CASH) {
+                    setSymbol('');
+                    setUnitPrice('1');
+                    setLatestPrice('1');
+                    setQuantity('0');
+                  }
                   setCandidates([]);
                   setQuoteMessage('');
                 }}
@@ -228,7 +249,8 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                     if (error) setError('');
                   }}
                   onBlur={refreshTypedSymbol}
-                  placeholder="可选：017091 / AAPL / 005930.KS"
+                  disabled={isCash}
+                  placeholder={isCash ? '现金账户不需要行情代码' : '可选：017091 / AAPL / 005930.KS'}
                   className="flex h-10 w-full rounded-md border border-ink-200 bg-white py-2 pl-9 pr-10 text-sm text-ink-800"
                 />
                 {symbol && (
@@ -298,7 +320,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none">持有份额/股数</label>
+              <label className="text-sm font-medium leading-none">{isCash ? '现金余额' : '持有份额/股数'}</label>
               <input
                 type="number"
                 value={quantity}
@@ -313,14 +335,15 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none">买入单位成本</label>
+              <label className="text-sm font-medium leading-none">{isCash ? '现金单位价格' : '买入单位成本'}</label>
               <input
                 type="number"
                 value={unitPrice}
                 onChange={(e) => setUnitPrice(e.target.value)}
+                disabled={isCash}
                 step="0.0001"
                 min="0"
-                placeholder="可改成真实买入成本"
+                placeholder={isCash ? '固定为 1' : '可改成真实买入成本'}
                 className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
@@ -332,6 +355,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
               <input
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                onBlur={refreshCashRate}
                 maxLength={3}
                 className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
@@ -342,9 +366,10 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 type="number"
                 value={latestPrice}
                 onChange={(e) => setLatestPrice(e.target.value)}
+                disabled={isCash}
                 step="0.0001"
                 min="0"
-                placeholder="自动或手动"
+                placeholder={isCash ? '固定为 1' : '自动或手动'}
                 className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
@@ -354,7 +379,7 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 type="number"
                 value={exchangeRate}
                 onChange={(e) => setExchangeRate(e.target.value)}
-                step="0.0001"
+                step="any"
                 min="0"
                 className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
@@ -370,6 +395,20 @@ export function AssetInputForm({ onSuccess }: AssetInputFormProps) {
                 className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium leading-none">初始资金来源</label>
+            <select
+              value={flowClass}
+              onChange={(event) => setFlowClass(event.target.value as FlowClass)}
+              className="flex h-10 w-full rounded-md border border-ink-200 bg-white px-3 text-sm text-ink-800"
+            >
+              <option value="opening_balance">仅补录期初持仓</option>
+              <option value="external_contribution">使用外部资金买入 / 存入</option>
+              <option value="internal_trade">使用现有现金账户结算（后续流水中联动）</option>
+            </select>
+            <p className="text-xs text-ink-400">期初持仓和内部交易不会被当作新增投资收益。</p>
           </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}

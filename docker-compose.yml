@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: asset_manager
-      POSTGRES_USER: asset_user
-      POSTGRES_PASSWORD: asset_pass
+      POSTGRES_DB: ${POSTGRES_DB:-asset_manager}
+      POSTGRES_USER: ${POSTGRES_USER:-asset_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-asset_pass}
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U asset_user -d asset_manager"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-asset_user} -d ${POSTGRES_DB:-asset_manager}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,17 +20,56 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      DATABASE_URL: postgresql+psycopg://asset_user:asset_pass@postgres:5432/asset_manager
-      SESSION_SECRET: change-this-local-secret
-      APP_ORIGIN: http://localhost:5173
-      MARKET_REFRESH_ENABLED: "true"
-      MARKET_REFRESH_INTERVAL_SECONDS: "21600"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-asset_user}:${POSTGRES_PASSWORD:-asset_pass}@postgres:5432/${POSTGRES_DB:-asset_manager}
+      SESSION_SECRET: ${SESSION_SECRET:-change-this-before-deployment}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:5173}
+      MARKET_REFRESH_ENABLED: ${MARKET_REFRESH_ENABLED:-true}
+      MARKET_REFRESH_INTERVAL_SECONDS: ${MARKET_REFRESH_INTERVAL_SECONDS:-21600}
+      ALLOW_OPEN_REGISTRATION: ${ALLOW_OPEN_REGISTRATION:-true}
       AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
       AI_MODEL: ${AI_MODEL:-gpt-4.1-mini}
       AI_VISION_MODEL: ${AI_VISION_MODEL:-gpt-4.1-mini}
       AI_API_KEY: ${AI_API_KEY:-}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
+      RESEARCH_USER_AGENT: ${RESEARCH_USER_AGENT:-PortfolioResearch/1.0 admin@example.com}
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  research-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "backend.research.worker"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-asset_user}:${POSTGRES_PASSWORD:-asset_pass}@postgres:5432/${POSTGRES_DB:-asset_manager}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4.1-mini}
+      AI_API_KEY: ${AI_API_KEY:-}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
+      RESEARCH_USER_AGENT: ${RESEARCH_USER_AGENT:-PortfolioResearch/1.0 admin@example.com}
+      RESEARCH_MACRO_INTERVAL_SECONDS: ${RESEARCH_MACRO_INTERVAL_SECONDS:-21600}
+      RESEARCH_EARNINGS_INTERVAL_SECONDS: ${RESEARCH_EARNINGS_INTERVAL_SECONDS:-43200}
+      RESEARCH_SEC_INTERVAL_SECONDS: ${RESEARCH_SEC_INTERVAL_SECONDS:-600}
+      RESEARCH_NEWS_INTERVAL_SECONDS: ${RESEARCH_NEWS_INTERVAL_SECONDS:-3600}
     depends_on:
       postgres:
         condition: service_healthy

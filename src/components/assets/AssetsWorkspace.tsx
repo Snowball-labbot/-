@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   MoreVertical,
+  ArchiveRestore,
   Plus,
   RefreshCw,
   Search,
@@ -35,11 +36,12 @@ function gainClass(value: number) {
 }
 
 export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspaceProps) {
-  const { assets, removeAsset, refreshAssetPrice } = useAssetStore();
+  const { assets, archivedAssets, loadArchivedAssets, removeAsset, restoreAsset, refreshAssetPrice } = useAssetStore();
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const totalValue = assets.reduce((sum, asset) => sum + Number(asset.current_value_cny || 0), 0);
 
   const filteredAssets = useMemo(() => {
@@ -70,7 +72,10 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
           return a.localeCompare(b, 'zh-CN');
         }),
         value: typeAssets.reduce((sum, asset) => sum + Number(asset.current_value_cny || 0), 0),
-        gain: typeAssets.reduce((sum, asset) => sum + Number(asset.unrealized_gain_cny || 0), 0),
+        gain: typeAssets.reduce(
+          (sum, asset) => sum + Number(asset.unrealized_gain_cny || 0) + Number(asset.realized_gain_cny || 0),
+          0,
+        ),
       };
     })
     .filter((section) => section.assets.length > 0), [filteredAssets]);
@@ -93,11 +98,11 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
 
   const handleDelete = async (event: React.MouseEvent, asset: AssetItem) => {
     event.stopPropagation();
-    if (!confirm(`确定删除“${asset.name}”吗？相关交易流水和快照也会一并删除。`)) return;
+    if (!confirm(`确定归档“${asset.name}”吗？流水和历史快照会保留，可随时恢复。`)) return;
     try {
       await removeAsset(asset.id);
     } catch (error) {
-      alert(error instanceof Error ? error.message : '删除资产失败。');
+      alert(error instanceof Error ? error.message : '归档资产失败。');
     }
   };
 
@@ -143,6 +148,17 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
           >
             全部 {assets.length}
           </button>
+          <button
+            type="button"
+            onClick={async () => {
+              const next = !showArchived;
+              setShowArchived(next);
+              if (next) await loadArchivedAssets();
+            }}
+            className="h-9 shrink-0 rounded-md px-4 text-xs font-semibold text-ink-500 hover:bg-ink-50"
+          >
+            已归档 {archivedAssets.length}
+          </button>
           {assetTypes.map((type) => {
             const count = assets.filter((asset) => asset.type === type).length;
             const value = assets
@@ -171,6 +187,22 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
           })}
         </div>
       </section>
+
+      {showArchived && (
+        <section className="rounded-lg border border-ink-100 bg-white px-5 py-4">
+          <h2 className="text-sm font-bold text-ink-900">已归档资产</h2>
+          <div className="mt-3 divide-y divide-ink-100">
+            {archivedAssets.length === 0 ? <p className="py-3 text-xs text-ink-400">暂无归档资产</p> : archivedAssets.map((asset) => (
+              <div key={asset.id} className="flex items-center justify-between py-2.5 text-sm">
+                <span><strong>{asset.name}</strong><small className="ml-2 text-ink-400">{asset.symbol || asset.currency}</small></span>
+                <button type="button" onClick={() => restoreAsset(asset.id)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600">
+                  <ArchiveRestore size={14} /> 恢复
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {sections.length === 0 ? (
         <section className="flex min-h-[360px] flex-col items-center justify-center rounded-lg border border-dashed border-ink-200 bg-white px-6 text-center">
@@ -216,7 +248,9 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                       0,
                     );
                     const groupGain = groupAssets.reduce(
-                      (sum, asset) => sum + Number(asset.unrealized_gain_cny || 0),
+                      (sum, asset) => sum
+                        + Number(asset.unrealized_gain_cny || 0)
+                        + Number(asset.realized_gain_cny || 0),
                       0,
                     );
                     return (
@@ -255,14 +289,18 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                                     const costCny = Number(asset.quantity || 0)
                                       * Number(asset.avg_cost || 0)
                                       * Number(asset.exchange_rate_to_cny || 1);
-                                    const gainCny = Number(asset.unrealized_gain_cny || 0);
+                                    const gainCny = Number(asset.unrealized_gain_cny || 0)
+                                      + Number(asset.realized_gain_cny || 0);
                                     const gainPct = Number(asset.unrealized_gain_pct || 0);
+                                    const hasRealizedGain = Math.abs(Number(asset.realized_gain_cny || 0)) > 0.005;
                                     const valuePct = totalValue > 0
                                       ? (Number(asset.current_value_cny) / totalValue) * 100
                                       : 0;
                                     const identity = [
                                       asset.symbol || '手动记录',
-                                      `${formatQuantity(asset.quantity)} 份`,
+                                      asset.type === AssetType.CASH
+                                        ? `${asset.currency} ${formatQuantity(asset.quantity)}`
+                                        : `${formatQuantity(asset.quantity)} 份`,
                                     ].filter(Boolean).join(' · ');
 
                                     return (
@@ -285,7 +323,7 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                                             <span className="font-semibold text-ink-800">{formatCny(costCny, 0)}</span>
                                           </div>
                                           <div className={`mt-1 text-xs font-semibold ${gainClass(gainCny)}`}>
-                                            {signedCny(gainCny)} · {formatPercent(gainPct, 1)}
+                                            {signedCny(gainCny)} · {hasRealizedGain ? '含已实现' : formatPercent(gainPct, 1)}
                                           </div>
                                         </td>
                                         <td className="px-4 py-3.5 text-right">
@@ -308,7 +346,7 @@ export function AssetsWorkspace({ onSelectAsset, onAddAsset }: AssetsWorkspacePr
                                             </button>
                                             <button
                                               type="button"
-                                              title="删除资产"
+                                              title="归档资产"
                                               onClick={(event) => handleDelete(event, asset)}
                                               className="rounded p-1.5 text-ink-400 hover:bg-white hover:text-red-600"
                                             >

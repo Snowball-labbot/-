@@ -15,10 +15,13 @@ const transactionLabels: Record<string, string> = {
   adjustment: '\u4ef7\u683c/\u624b\u52a8\u8c03\u6574',
   cash_in: '\u73b0\u91d1\u6d41\u5165',
   cash_out: '\u73b0\u91d1\u6d41\u51fa',
+  transfer_in: '转入',
+  transfer_out: '转出',
+  income: '分红/利息',
 };
 
 export function AssetSpecificHistory({ assetId }: AssetSpecificHistoryProps) {
-  const { transactionsByAsset, loadTransactions } = useAssetStore();
+  const { assets, transactionsByAsset, loadTransactions } = useAssetStore();
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -42,8 +45,15 @@ export function AssetSpecificHistory({ assetId }: AssetSpecificHistoryProps) {
     <div className="space-y-4">
       <div className="space-y-3">
         {currentData.map((item) => {
-          const signed = item.type === 'sell' || item.type === 'cash_out' ? -1 : 1;
-          const value = Number(item.quantity) * Number(item.unit_price) + Number(item.fee);
+          const signed = ['sell', 'cash_out', 'transfer_out'].includes(item.type) ? -1 : 1;
+          const gross = Number(item.quantity) * Number(item.unit_price);
+          const value = item.type === 'sell'
+            ? gross - Number(item.fee)
+            : ['cash_out', 'transfer_out'].includes(item.type)
+              ? gross + Number(item.fee)
+              : gross;
+          const relatedAsset = assets.find((asset) => asset.id === item.related_holding_id);
+          const realizedGain = Number(item.realized_gain_native || 0);
           return (
             <div key={item.id} className="group flex items-center justify-between rounded-lg border border-gray-100 bg-white p-3 transition-shadow hover:shadow-sm">
               <div className="flex items-center gap-3">
@@ -54,6 +64,7 @@ export function AssetSpecificHistory({ assetId }: AssetSpecificHistoryProps) {
                   <p className="text-sm font-medium text-gray-900">{transactionLabels[item.type] || item.type}</p>
                   <p className="text-xs text-gray-500">{dayjs(item.trade_date).format('YYYY-MM-DD HH:mm:ss')}</p>
                   {item.note && <p className="mt-0.5 text-xs text-gray-400">{item.note}</p>}
+                  {relatedAsset && <p className="mt-0.5 text-xs text-brand-600">关联：{relatedAsset.name}</p>}
                 </div>
               </div>
               <div className="text-right">
@@ -61,6 +72,11 @@ export function AssetSpecificHistory({ assetId }: AssetSpecificHistoryProps) {
                   {signed > 0 ? '+' : '-'}{item.currency} {Math.abs(value).toLocaleString()}
                 </p>
                 <p className="text-xs text-gray-500">{Number(item.quantity).toLocaleString()} x {Number(item.unit_price).toLocaleString()}</p>
+                {['sell', 'income'].includes(item.type) && (
+                  <p className={`mt-1 text-xs font-semibold ${realizedGain >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    已实现 {realizedGain >= 0 ? '+' : ''}{item.currency} {realizedGain.toLocaleString()}
+                  </p>
+                )}
               </div>
             </div>
           );

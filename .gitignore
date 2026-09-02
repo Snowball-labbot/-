@@ -14,10 +14,24 @@ __pycache__
 *.py[cod]
 *.local
 
-# Environment Variables
-.env
-.env.local
-.env.*.local
+# Environment variables and local credentials
+.env*
+!.env.example
+
+# Local databases, exports, generated research, and private seeds
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.xlsx
+*.xls
+*.csv
+portfolio_backup_*.json
+codex_research_packet_*.json
+backend/reports/
+backend/scripts/seed_family_safety_details.py
+.codex-*.log
+private/
 
 # Editor directories and files
 .vscode/*
@@ -25,6 +39,8 @@ __pycache__
 .idea
 .trae
 .vercel
+.playwright-cli/
+output/
 .DS_Store
 *.suo
 *.ntvs*

@@ -1,10 +1,12 @@
-import { ReactNode, useState } from 'react';
-import { Bot, Gem, Menu, PieChart, Target, X } from 'lucide-react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { Bot, Gem, LibraryBig, Menu, Newspaper, PieChart, Radar, ShieldCheck, Target, X } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { formatCompactCny } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-export type WorkspaceView = 'networth' | 'assets' | 'strategy' | 'detail';
+export type WorkspaceView = 'networth' | 'assets' | 'family' | 'research' | 'market' | 'macro' | 'industry' | 'quant' | 'library' | 'strategy' | 'detail';
+export type NavigableView = Exclude<WorkspaceView, 'detail'>;
 
 interface AppShellProps {
   activeView: WorkspaceView;
@@ -12,7 +14,7 @@ interface AppShellProps {
   subtitle?: string;
   totalValue: number;
   assetCount: number;
-  onNavigate: (view: 'networth' | 'assets' | 'strategy') => void;
+  onNavigate: (view: NavigableView) => void;
   actions?: ReactNode;
   mobileActions?: ReactNode;
   children: ReactNode;
@@ -21,6 +23,13 @@ interface AppShellProps {
 const navItems = [
   { value: 'networth' as const, label: '净资产', helper: 'Net Worth', icon: PieChart },
   { value: 'assets' as const, label: '资产', helper: 'Assets', icon: Gem },
+  { value: 'family' as const, label: '家庭安全垫', helper: 'Family Reserve', icon: ShieldCheck },
+];
+
+const researchNavItems = [
+  { value: 'research' as const, label: '每日研究', helper: 'Research Desk', icon: Newspaper },
+  { value: 'market' as const, label: '市场观察', helper: 'Market Watch', icon: Radar },
+  { value: 'library' as const, label: '研究库', helper: 'Research Library', icon: LibraryBig },
 ];
 
 export function AppShell({
@@ -38,7 +47,7 @@ export function AppShell({
   const { user, signOut } = useAuthStore();
   const navActive = activeView === 'detail' ? 'assets' : activeView;
 
-  const navigate = (view: 'networth' | 'assets' | 'strategy') => {
+  const navigate = (view: NavigableView) => {
     onNavigate(view);
     setMobileMenuOpen(false);
   };
@@ -94,6 +103,33 @@ export function AppShell({
           );
         })}
       </nav>
+
+      <div className="mx-2.5 border-t border-ink-100 pt-3">
+        <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase text-ink-300">Research</div>
+        <nav className="space-y-1" aria-label="投研导航">
+          {researchNavItems.map((item) => {
+            const Icon = item.icon;
+            const active = navActive === item.value;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => navigate(item.value)}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left transition-colors',
+                  active ? 'bg-ink-950 text-white' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-950',
+                )}
+              >
+                <Icon size={18} strokeWidth={1.8} />
+                <span>
+                  <span className="block text-sm font-semibold">{item.label}</span>
+                  <span className={cn('block text-[11px]', active ? 'text-white/55' : 'text-ink-400')}>{item.helper}</span>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
 
       {mobileActions && (
         <div className="mx-3 grid grid-cols-2 gap-2 border-t border-ink-100 pt-4 lg:hidden">

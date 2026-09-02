@@ -15,9 +15,12 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 @router.get("/summary", response_model=SummaryOut)
 def summary(user: User = Depends(get_current_user), db: DbSession = Depends(get_db)) -> SummaryOut:
-    holdings = db.scalars(select(Holding).where(Holding.user_id == user.id)).all()
+    holdings = db.scalars(select(Holding).where(Holding.user_id == user.id, Holding.archived_at.is_(None))).all()
     total_value = sum((h.current_value_cny for h in holdings), Decimal("0"))
-    total_cost = sum((total_cost_cny(h) for h in holdings), Decimal("0"))
+    current_cost = sum((total_cost_cny(h) for h in holdings), Decimal("0"))
+    realized_gain = sum((h.realized_gain_cny for h in holdings), Decimal("0"))
+    unrealized_gain = total_value - current_cost
+    total_gain = unrealized_gain + realized_gain
     by_type: dict[str, dict] = {}
     for holding in holdings:
         bucket = by_type.setdefault(holding.type, {"type": holding.type, "value_cny": Decimal("0"), "count": 0})
@@ -25,8 +28,10 @@ def summary(user: User = Depends(get_current_user), db: DbSession = Depends(get_
         bucket["count"] += 1
     return SummaryOut(
         total_value_cny=total_value,
-        total_cost_cny=total_cost,
-        unrealized_gain_cny=total_value - total_cost,
+        total_cost_cny=total_value - total_gain,
+        unrealized_gain_cny=unrealized_gain,
+        realized_gain_cny=realized_gain,
+        total_gain_cny=total_gain,
         slices=[SummarySlice(**value) for value in by_type.values()],
     )
 

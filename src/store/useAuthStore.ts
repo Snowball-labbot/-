@@ -8,7 +8,7 @@ interface AuthState {
   error: string | null;
   initialize: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, inviteCode: string) => Promise<void>;
+  register: (email: string, password: string, inviteCode?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 

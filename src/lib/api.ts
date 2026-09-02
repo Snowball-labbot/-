@@ -1,6 +1,12 @@
 import type {
   AssetItem,
+  CashTransferInput,
+  CashTransferItem,
+  CompanyCoverageItem,
+  CompanyDossier,
+  CompanyFundamentals,
   ExtractedHolding,
+  FxRate,
   HoldingCreateInput,
   HoldingUpdateInput,
   HoldingsImageExtractResponse,
@@ -9,6 +15,16 @@ import type {
   MarketQuote,
   PortfolioBackupFile,
   PortfolioImportResult,
+  PortfolioImportPreview,
+  PortfolioPerformance,
+  PortfolioPerspective,
+  ExposureProfile,
+  HoldingExposureResult,
+  FamilySafetySnapshot,
+  FamilySafetyItem,
+  FamilySafetyItemInput,
+  QuantExperiment,
+  QuantExperimentInput,
   Summary,
   StrategyAdviceRequest,
   StrategyAdviceResponse,
@@ -16,6 +32,17 @@ import type {
   TransactionItem,
   TrendPoint,
   User,
+  MarketScore,
+  ResearchBriefInput,
+  ResearchDashboard,
+  ResearchDocument,
+  ResearchDocumentInput,
+  ResearchEvent,
+  ResearchNewsItem,
+  ResearchFolder,
+  ResearchFolderInput,
+  SocialMention,
+  WatchlistItem,
 } from '@/types';
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
@@ -70,17 +97,18 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 export const api = {
+  authConfig: () => request<{ allow_open_registration: boolean }>('/api/auth/config'),
   me: () => request<User>('/api/auth/me'),
   login: (email: string, password: string) => request<User>('/api/auth/login', {
     method: 'POST',
     body: { email, password },
   }),
-  register: (email: string, password: string, inviteCode: string) => request<User>('/api/auth/register', {
+  register: (email: string, password: string, inviteCode?: string) => request<User>('/api/auth/register', {
     method: 'POST',
-    body: { email, password, invite_code: inviteCode },
+    body: { email, password, invite_code: inviteCode || null },
   }),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
-  holdings: () => request<AssetItem[]>('/api/holdings'),
+  holdings: (includeArchived = false) => request<AssetItem[]>(`/api/holdings?include_archived=${includeArchived}`),
   createHolding: (payload: HoldingCreateInput) => request<AssetItem>('/api/holdings', {
     method: 'POST',
     body: payload,
@@ -90,16 +118,26 @@ export const api = {
     body: payload,
   }),
   deleteHolding: (id: string) => request<{ ok: boolean }>(`/api/holdings/${id}`, { method: 'DELETE' }),
+  restoreHolding: (id: string) => request<AssetItem>(`/api/holdings/${id}/restore`, { method: 'POST' }),
   transactions: (holdingId: string) => request<TransactionItem[]>(`/api/holdings/${holdingId}/transactions`),
   createTransaction: (holdingId: string, payload: TransactionCreateInput) => request<TransactionItem>(`/api/holdings/${holdingId}/transactions`, {
     method: 'POST',
     body: payload,
   }),
+  cashTransfers: (holdingId?: string) => request<CashTransferItem[]>(
+    `/api/transfers${holdingId ? `?holding_id=${encodeURIComponent(holdingId)}` : ''}`,
+  ),
+  createCashTransfer: (payload: CashTransferInput) => request<CashTransferItem>('/api/transfers', {
+    method: 'POST',
+    body: payload,
+  }),
+  fxRate: (currency: string) => request<FxRate>(`/api/market/fx?currency=${encodeURIComponent(currency)}`),
   refreshHoldingPrice: (holdingId: string) => request<AssetItem>(`/api/holdings/${holdingId}/refresh-price`, {
     method: 'POST',
   }),
   searchMarket: (query: string, market: 'CN' | 'US' | 'KR') => request<MarketInstrument[]>(`/api/market/search?q=${encodeURIComponent(query)}&market=${market}`),
   quoteMarket: (market: string, symbol: string, kind: string) => request<MarketQuote>(`/api/market/quote?market=${encodeURIComponent(market)}&symbol=${encodeURIComponent(symbol)}&kind=${encodeURIComponent(kind)}`),
+  historicalQuote: (market: string, symbol: string, kind: string, date: string) => request<MarketQuote>(`/api/market/historical?market=${encodeURIComponent(market)}&symbol=${encodeURIComponent(symbol)}&kind=${encodeURIComponent(kind)}&date=${encodeURIComponent(date)}`),
   summary: () => request<Summary>('/api/analytics/summary'),
   trend: (range: 'week' | 'month' | 'year') => request<TrendPoint[]>(`/api/analytics/trend?range=${range}`),
   holdingTrend: (holdingId: string, range: 'week' | 'month' | 'year') => request<TrendPoint[]>(`/api/holdings/${holdingId}/trend?range=${range}`),
@@ -108,6 +146,24 @@ export const api = {
     method: 'POST',
     body: payload,
   }),
+  previewPortfolioImport: (payload: PortfolioBackupFile) => request<PortfolioImportPreview>('/api/portfolio/import-preview', { method: 'POST', body: payload }),
+  undoPortfolioImport: (batchId: string) => request<{ ok: boolean; removed: number }>(`/api/portfolio/import-batches/${batchId}`, { method: 'DELETE' }),
+  latestPortfolioImportBatch: () => request<{ id: string; imported_count: number; skipped_count: number; created_at: string } | null>('/api/portfolio/import-batches/latest'),
+  portfolioPerspective: () => request<PortfolioPerspective>('/api/portfolio-insights/perspective'),
+  exposureProfiles: () => request<ExposureProfile[]>('/api/portfolio-insights/profiles'),
+  holdingExposures: (holdingId: string) => request<HoldingExposureResult>(`/api/portfolio-insights/holdings/${holdingId}/exposures`),
+  updateHoldingExposures: (holdingId: string, items: Array<{ profile_code: string; weight_pct: number }>) => request<{ ok: boolean }>(`/api/portfolio-insights/holdings/${holdingId}/exposures`, {
+    method: 'PUT',
+    body: { items },
+  }),
+  portfolioPerformance: (range: 'week' | 'month' | 'year' | 'all') => request<PortfolioPerformance>(`/api/portfolio-insights/performance?range=${range}`),
+  familySafetyLatest: () => request<FamilySafetySnapshot | null>('/api/portfolio-insights/family-safety/latest'),
+  familySafetyHistory: () => request<FamilySafetySnapshot[]>('/api/portfolio-insights/family-safety/history'),
+  saveFamilySafety: (payload: Omit<FamilySafetySnapshot, 'id' | 'created_at' | 'next_review_date'> & { next_review_date?: string }) => request<FamilySafetySnapshot>('/api/portfolio-insights/family-safety', { method: 'POST', body: payload }),
+  familySafetyItems: () => request<FamilySafetyItem[]>('/api/portfolio-insights/family-safety/items'),
+  createFamilySafetyItem: (payload: FamilySafetyItemInput) => request<FamilySafetyItem>('/api/portfolio-insights/family-safety/items', { method: 'POST', body: payload }),
+  updateFamilySafetyItem: (id: string, payload: FamilySafetyItemInput) => request<FamilySafetyItem>(`/api/portfolio-insights/family-safety/items/${id}`, { method: 'PATCH', body: payload }),
+  deleteFamilySafetyItem: (id: string) => request<{ ok: boolean }>(`/api/portfolio-insights/family-safety/items/${id}`, { method: 'DELETE' }),
   strategyAdvice: (payload: StrategyAdviceRequest) => request<StrategyAdviceResponse>('/api/ai/strategy-advice', {
     method: 'POST',
     body: payload,
@@ -120,4 +176,66 @@ export const api = {
     method: 'POST',
     body: { holdings },
   }),
+  researchDashboard: () => request<ResearchDashboard>('/api/research/dashboard'),
+  researchEvents: (days = 30, eventType?: string) => request<ResearchEvent[]>(
+    `/api/research/events?days=${days}${eventType ? `&event_type=${encodeURIComponent(eventType)}` : ''}`,
+  ),
+  researchNews: (days = 7, topic?: string) => request<ResearchNewsItem[]>(
+    `/api/research/news?days=${days}${topic ? `&topic=${encodeURIComponent(topic)}` : ''}`,
+  ),
+  refreshResearch: () => request<{ ok: boolean; message: string }>('/api/research/refresh', { method: 'POST' }),
+  researchFolders: () => request<ResearchFolder[]>('/api/research/folders'),
+  createResearchFolder: (payload: ResearchFolderInput) => request<ResearchFolder>('/api/research/folders', {
+    method: 'POST', body: payload,
+  }),
+  deleteResearchFolder: (id: string) => request<{ ok: boolean }>(`/api/research/folders/${id}`, { method: 'DELETE' }),
+  researchDocuments: (folderId?: string, query?: string) => request<ResearchDocument[]>(
+    `/api/research/documents?${new URLSearchParams({
+      ...(folderId ? { folder_id: folderId } : {}),
+      ...(query ? { q: query } : {}),
+    }).toString()}`,
+  ),
+  createResearchDocument: (payload: ResearchDocumentInput) => request<ResearchDocument>('/api/research/documents', {
+    method: 'POST', body: payload,
+  }),
+  updateResearchDocument: (id: string, payload: Partial<ResearchDocumentInput>) => request<ResearchDocument>(`/api/research/documents/${id}`, {
+    method: 'PATCH', body: payload,
+  }),
+  deleteResearchDocument: (id: string) => request<{ ok: boolean }>(`/api/research/documents/${id}`, { method: 'DELETE' }),
+  watchlist: () => request<WatchlistItem[]>('/api/research/watchlist'),
+  createWatchlistItem: (payload: Partial<WatchlistItem> & Pick<WatchlistItem, 'symbol' | 'name'>) => request<WatchlistItem>('/api/research/watchlist', {
+    method: 'POST', body: payload,
+  }),
+  updateWatchlistItem: (id: string, payload: Partial<WatchlistItem>) => request<WatchlistItem>(`/api/research/watchlist/${id}`, {
+    method: 'PATCH', body: payload,
+  }),
+  deleteWatchlistItem: (id: string) => request<{ ok: boolean }>(`/api/research/watchlist/${id}`, { method: 'DELETE' }),
+  companyCoverage: () => request<CompanyCoverageItem[]>('/api/research/coverage'),
+  companyFundamentals: (symbol: string, market = 'US') => request<CompanyFundamentals>(
+    `/api/research/company/${encodeURIComponent(symbol)}/fundamentals?market=${encodeURIComponent(market)}`,
+  ),
+  createCompanyDossier: (market: string, symbol: string) => request<CompanyDossier>(
+    `/api/research/company/${encodeURIComponent(market)}/${encodeURIComponent(symbol)}/dossier`,
+    { method: 'POST' },
+  ),
+  quantExperiments: () => request<QuantExperiment[]>('/api/research/quant/experiments'),
+  createQuantExperiment: (payload: QuantExperimentInput) => request<QuantExperiment>('/api/research/quant/experiments', {
+    method: 'POST', body: payload,
+  }),
+  updateQuantExperiment: (id: string, payload: Partial<QuantExperimentInput>) => request<QuantExperiment>(`/api/research/quant/experiments/${id}`, {
+    method: 'PATCH', body: payload,
+  }),
+  deleteQuantExperiment: (id: string) => request<{ ok: boolean }>(`/api/research/quant/experiments/${id}`, { method: 'DELETE' }),
+  researchPacket: (date: string) => request<Record<string, unknown>>(`/api/research/codex-packet/${date}`),
+  previewResearchBrief: (payload: ResearchBriefInput) => request<ResearchBriefInput & { word_count: number; warnings: string[] }>('/api/research/briefs/import-preview', {
+    method: 'POST', body: payload,
+  }),
+  confirmResearchBrief: (payload: ResearchBriefInput) => request<ResearchDocument>('/api/research/briefs/import-confirm', {
+    method: 'POST', body: payload,
+  }),
+  socialTopTen: (refresh = false) => request<SocialMention[]>(`/api/market-observation/social-top10?refresh=${refresh}`),
+  marketScores: (refresh = false) => request<MarketScore[]>(`/api/market-observation/scores?refresh=${refresh}`),
+  marketScoreHistory: (symbol: string, days = 365) => request<Array<Record<string, number | string>>>(
+    `/api/market-observation/scores/${encodeURIComponent(symbol)}/history?days=${days}`,
+  ),
 };

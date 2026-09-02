@@ -7,7 +7,27 @@ from sqlalchemy.orm import Session
 from .models import Holding, Transaction, ValuationSnapshot, now_utc
 
 
-VALID_TRANSACTION_TYPES = {"buy", "sell", "adjustment", "cash_in", "cash_out"}
+VALID_TRANSACTION_TYPES = {
+    "buy",
+    "sell",
+    "adjustment",
+    "cash_in",
+    "cash_out",
+    "transfer_in",
+    "transfer_out",
+    "income",
+}
+
+VALID_FLOW_CLASSES = {
+    "opening_balance",
+    "external_contribution",
+    "external_withdrawal",
+    "internal_trade",
+    "internal_transfer",
+    "valuation_correction",
+}
+
+PERFORMANCE_BASELINE = datetime(2026, 7, 6, tzinfo=timezone.utc)
 
 
 def normalize_currency(currency: str | None) -> str:
@@ -81,6 +101,11 @@ def create_transaction_record(
     fee: Decimal | int | float | str = Decimal("0"),
     currency: str = "CNY",
     exchange_rate_to_cny: Decimal | int | float | str = Decimal("1"),
+    operation_id: str | None = None,
+    related_holding_id: str | None = None,
+    flow_class: str = "internal_trade",
+    realized_gain_native: Decimal | int | float | str = Decimal("0"),
+    realized_gain_cny: Decimal | int | float | str = Decimal("0"),
     note: str | None = None,
 ) -> Transaction:
     transaction = Transaction(
@@ -93,6 +118,11 @@ def create_transaction_record(
         fee=to_decimal(fee),
         currency=normalize_currency(currency),
         exchange_rate_to_cny=to_decimal(exchange_rate_to_cny) or Decimal("1"),
+        operation_id=operation_id,
+        related_holding_id=related_holding_id,
+        flow_class=flow_class if flow_class in VALID_FLOW_CLASSES else "internal_trade",
+        realized_gain_native=to_decimal(realized_gain_native),
+        realized_gain_cny=to_decimal(realized_gain_cny),
         note=note,
     )
     db.add(transaction)
@@ -107,6 +137,7 @@ def recalculate_holding(db: Session, holding: Holding) -> None:
 
     quantity = Decimal("0")
     cost = Decimal("0")
+    cost_cny = Decimal("0")
     current_price = holding.current_price or Decimal("0")
     exchange_rate = holding.exchange_rate_to_cny or Decimal("1")
 
@@ -115,31 +146,57 @@ def recalculate_holding(db: Session, holding: Holding) -> None:
         p = to_decimal(item.unit_price)
         fee = to_decimal(item.fee)
         exchange_rate = to_decimal(item.exchange_rate_to_cny) or exchange_rate
+        transaction_cost = q * p + fee
+        transaction_cost_cny = transaction_cost * exchange_rate
 
-        if item.type in {"buy", "cash_in"}:
+        if item.type in {"buy", "cash_in", "transfer_in"}:
             quantity += q
-            cost += q * p + fee
+            cost += transaction_cost
+            cost_cny += transaction_cost_cny
             current_price = p
-        elif item.type in {"sell", "cash_out"}:
+        elif item.type == "sell":
             avg_cost = cost / quantity if quantity > 0 else Decimal("0")
+            avg_cost_cny = cost_cny / quantity if quantity > 0 else Decimal("0")
             sell_quantity = min(q, quantity)
             quantity -= sell_quantity
             cost -= avg_cost * sell_quantity
+            cost_cny -= avg_cost_cny * sell_quantity
+            current_price = p
+        elif item.type in {"cash_out", "transfer_out"}:
+            avg_cost = cost / quantity if quantity > 0 else Decimal("0")
+            avg_cost_cny = cost_cny / quantity if quantity > 0 else Decimal("0")
+            withdrawn_quantity = min(q + fee, quantity)
+            quantity -= withdrawn_quantity
+            cost -= avg_cost * withdrawn_quantity
+            cost_cny -= avg_cost_cny * withdrawn_quantity
             current_price = p
         elif item.type == "adjustment":
             if q > 0:
                 quantity += q
-                cost += q * p + fee
+                cost += transaction_cost
+                cost_cny += transaction_cost_cny
             current_price = p
 
     current_value = quantity * current_price
     holding.quantity = quantity
     holding.avg_cost = cost / quantity if quantity > 0 else Decimal("0")
+    holding.cost_basis_cny = max(cost_cny, Decimal("0"))
     holding.current_price = current_price
     holding.current_value = current_value
     holding.current_value_cny = current_value * exchange_rate
     holding.exchange_rate_to_cny = exchange_rate
     holding.updated_at = now_utc()
+
+
+def backfill_cost_bases(db: Session) -> None:
+    holdings = db.scalars(select(Holding)).all()
+    changed = False
+    for holding in holdings:
+        if (holding.cost_basis_cny or Decimal("0")) == 0 and holding.transactions:
+            recalculate_holding(db, holding)
+            changed = True
+    if changed:
+        db.commit()
 
 
 def write_snapshot(db: Session, holding: Holding, source: str = "manual", when: datetime | None = None) -> None:
@@ -182,10 +239,12 @@ def apply_market_price(
 
 
 def total_cost_cny(holding: Holding) -> Decimal:
-    return (holding.quantity or Decimal("0")) * (holding.avg_cost or Decimal("0")) * (holding.exchange_rate_to_cny or Decimal("1"))
+    return holding.cost_basis_cny or Decimal("0")
 
 
 def range_start(range_name: str) -> datetime:
+    if range_name == "all":
+        return PERFORMANCE_BASELINE
     days = {"week": 6, "month": 29, "year": 364}.get(range_name, 6)
     today = snapshot_day()
     return today - timedelta(days=days)
@@ -233,3 +292,107 @@ def trend_points(db: Session, user_id: str, range_name: str, holding_id: str | N
                 by_holding[snapshot.holding_id] = snapshot.value_cny
         result.append({"date": day.date().isoformat(), "value_cny": sum(by_holding.values(), Decimal("0"))})
     return result
+
+
+def _external_flow_cny(transaction: Transaction) -> Decimal:
+    rate = to_decimal(transaction.exchange_rate_to_cny) or Decimal("1")
+    gross = (to_decimal(transaction.quantity) * to_decimal(transaction.unit_price) + to_decimal(transaction.fee)) * rate
+    if transaction.flow_class == "external_contribution":
+        return gross
+    if transaction.flow_class == "external_withdrawal":
+        return -gross
+    return Decimal("0")
+
+
+def portfolio_performance(db: Session, user_id: str, range_name: str) -> dict:
+    today = snapshot_day()
+    requested_start = max(range_start(range_name), PERFORMANCE_BASELINE)
+    snapshots = db.scalars(
+        select(ValuationSnapshot)
+        .where(
+            ValuationSnapshot.user_id == user_id,
+            ValuationSnapshot.snapshot_date <= today,
+        )
+        .order_by(ValuationSnapshot.snapshot_date.asc(), ValuationSnapshot.created_at.asc())
+    ).all()
+    transactions = db.scalars(
+        select(Transaction)
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.trade_date >= PERFORMANCE_BASELINE,
+            Transaction.trade_date < today + timedelta(days=1),
+        )
+        .order_by(Transaction.trade_date.asc())
+    ).all()
+    current_total = sum((holding.current_value_cny for holding in db.scalars(
+        select(Holding).where(Holding.user_id == user_id, Holding.archived_at.is_(None))
+    ).all()), Decimal("0"))
+
+    first_snapshot = min((snapshot_day(snapshot.snapshot_date) for snapshot in snapshots), default=PERFORMANCE_BASELINE)
+    calculation_start = max(PERFORMANCE_BASELINE, first_snapshot)
+    flow_by_day: dict[str, Decimal] = {}
+    for transaction in transactions:
+        key = snapshot_day(transaction.trade_date).date().isoformat()
+        flow_by_day[key] = flow_by_day.get(key, Decimal("0")) + _external_flow_cny(transaction)
+
+    by_holding: dict[str, Decimal] = {}
+    snapshot_index = 0
+    day = calculation_start
+    previous_value: Decimal | None = None
+    cumulative_growth = Decimal("1")
+    peak_growth = Decimal("1")
+    max_drawdown = Decimal("0")
+    net_external = Decimal("0")
+    opening_value = Decimal("0")
+    all_points: list[dict] = []
+
+    while day <= today:
+        while snapshot_index < len(snapshots) and snapshot_day(snapshots[snapshot_index].snapshot_date) <= day:
+            snapshot = snapshots[snapshot_index]
+            by_holding[snapshot.holding_id] = to_decimal(snapshot.value_cny)
+            snapshot_index += 1
+        value = sum(by_holding.values(), Decimal("0"))
+        if day == today:
+            value = current_total
+        day_key = day.date().isoformat()
+        flow = flow_by_day.get(day_key, Decimal("0"))
+        if previous_value is None:
+            opening_value = value - flow
+            if opening_value < 0:
+                opening_value = Decimal("0")
+        elif previous_value > 0:
+            daily_return = (value - previous_value - flow) / previous_value
+            cumulative_growth *= Decimal("1") + daily_return
+            peak_growth = max(peak_growth, cumulative_growth)
+            if peak_growth > 0:
+                max_drawdown = min(max_drawdown, cumulative_growth / peak_growth - Decimal("1"))
+        net_external += flow
+        invested = opening_value + net_external
+        profit = value - invested
+        all_points.append({
+            "date": day_key,
+            "value_cny": value,
+            "net_flow_cny": flow,
+            "invested_capital_cny": invested,
+            "profit_cny": profit,
+            "cumulative_return_pct": (cumulative_growth - Decimal("1")) * Decimal("100"),
+        })
+        previous_value = value
+        day += timedelta(days=1)
+
+    points = [point for point in all_points if point["date"] >= requested_start.date().isoformat()]
+    latest = all_points[-1] if all_points else {
+        "value_cny": Decimal("0"),
+        "invested_capital_cny": Decimal("0"),
+        "profit_cny": Decimal("0"),
+        "cumulative_return_pct": Decimal("0"),
+    }
+    return {
+        "baseline_date": PERFORMANCE_BASELINE.date().isoformat(),
+        "current_value_cny": latest["value_cny"],
+        "net_invested_cny": latest["invested_capital_cny"],
+        "profit_cny": latest["profit_cny"],
+        "return_pct": latest["cumulative_return_pct"],
+        "max_drawdown_pct": max_drawdown * Decimal("100"),
+        "points": points,
+    }

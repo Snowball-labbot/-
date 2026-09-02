@@ -4,6 +4,9 @@ import { AssetItem } from '@/types';
 import { useAssetStore } from '@/store/useAssetStore';
 import { AssetInfo } from './AssetInfo';
 import { TransactionForm } from './TransactionForm';
+import { CashTransferForm } from './CashTransferForm';
+import { ExposureEditor } from './ExposureEditor';
+import { AssetType } from '@/types';
 
 const AssetSpecificChart = lazy(() => import('./AssetSpecificChart').then((module) => ({ default: module.AssetSpecificChart })));
 const AssetSpecificHistory = lazy(() => import('./AssetSpecificHistory').then((module) => ({ default: module.AssetSpecificHistory })));
@@ -97,6 +100,8 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
             <AssetInfo asset={asset} />
           </section>
 
+          <ExposureEditor holdingId={asset.id} />
+
           <section className="rounded-lg border border-ink-100 bg-white p-5 md:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
@@ -133,6 +138,12 @@ export function AssetDetail({ asset, onBack }: AssetDetailProps) {
           <section>
             <TransactionForm asset={asset} />
           </section>
+
+          {asset.type === AssetType.CASH && (
+            <section>
+              <CashTransferForm asset={asset} />
+            </section>
+          )}
 
           <section className="rounded-lg border border-ink-100 bg-white p-5 md:p-6">
           <h3 className="mb-4 text-base font-bold text-ink-900">记录历史</h3>

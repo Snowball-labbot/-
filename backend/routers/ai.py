@@ -11,7 +11,7 @@ from ..ai_client import AIConfigError, AIRequestError, call_ai_chat, parse_json_
 from ..config import get_settings
 from ..database import get_db
 from ..dependencies import get_current_user
-from ..models import Holding, Transaction, User
+from ..models import FamilySafetyItem, FamilySafetySnapshot, Holding, Transaction, User
 from ..schemas import (
     ExtractedHoldingIn,
     HoldingsImageExtractIn,
@@ -81,7 +81,17 @@ def strategy_advice(
     user: User = Depends(get_current_user),
     db: DbSession = Depends(get_db),
 ) -> StrategyAdviceOut:
-    holdings = db.scalars(select(Holding).where(Holding.user_id == user.id)).all()
+    holdings = db.scalars(select(Holding).where(Holding.user_id == user.id, Holding.archived_at.is_(None))).all()
+    family_safety = db.scalar(
+        select(FamilySafetySnapshot)
+        .where(FamilySafetySnapshot.user_id == user.id)
+        .order_by(FamilySafetySnapshot.as_of_date.desc(), FamilySafetySnapshot.created_at.desc())
+    )
+    family_safety_items = db.scalars(
+        select(FamilySafetyItem)
+        .where(FamilySafetyItem.user_id == user.id, FamilySafetyItem.archived_at.is_(None))
+        .order_by(FamilySafetyItem.sort_order.asc())
+    ).all()
     settings = get_settings()
     system_prompt = (
         "你是一个资产配置分析助手，不是持牌投资顾问，也不能替用户做投资决策。"
@@ -116,6 +126,27 @@ def strategy_advice(
         "allocation_rows": payload.allocation_rows,
         "custom_context": payload.custom_context,
         "chat_history": chat_history,
+        "family_safety_context": ({
+            "term_deposits_cny": str(family_safety.term_deposits_cny),
+            "cash_funds_cny": str(family_safety.cash_funds_cny),
+            "as_of_date": family_safety.as_of_date.isoformat(),
+            "note": family_safety.note,
+            "instruction": "仅作为家庭背景和安全垫参考，不计入可调仓资金、个人配置比例或个人收益。",
+            "items": [
+                {
+                    "category": item.category,
+                    "institution": item.institution,
+                    "name": item.name,
+                    "amount_cny": str(item.amount_cny),
+                    "purpose": item.purpose,
+                    "liquidity": item.liquidity,
+                    "maturity_date": item.maturity_date.isoformat() if item.maturity_date else None,
+                    "expected_maturity": item.expected_maturity,
+                    "status": item.status,
+                }
+                for item in family_safety_items
+            ],
+        } if family_safety else None),
         "output_format": {
             "advice_markdown": "string",
             "risk_flags": ["string"],

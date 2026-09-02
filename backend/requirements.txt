@@ -9,3 +9,6 @@ email-validator==2.2.0
 akshare==1.18.60
 pandas==2.2.3
 yfinance==0.2.66
+httpx==0.28.1
+beautifulsoup4==4.12.3
+pytest==8.3.5

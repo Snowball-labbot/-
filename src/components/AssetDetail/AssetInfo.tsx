@@ -25,6 +25,10 @@ export function AssetInfo({ asset }: AssetInfoProps) {
   const gainCny = Number(asset.unrealized_gain_cny || 0);
   const gainNative = Number(asset.unrealized_gain_native || 0);
   const gainPct = Number(asset.unrealized_gain_pct || 0);
+  const nativeCost = Number(asset.quantity || 0) * Number(asset.avg_cost || 0);
+  const nativeGainPct = nativeCost > 0 ? (gainNative / nativeCost) * 100 : 0;
+  const realizedGainCny = Number(asset.realized_gain_cny || 0);
+  const realizedGainNative = Number(asset.realized_gain_native || 0);
   const gainClass = gainCny > 0 ? 'text-red-600' : gainCny < 0 ? 'text-emerald-600' : 'text-ink-500';
   const nativeSymbol = currencySymbol(asset.currency);
 
@@ -40,22 +44,46 @@ export function AssetInfo({ asset }: AssetInfoProps) {
     }
   };
 
-  const facts = [
-    { label: '持有份额', value: formatQuantity(asset.quantity), helper: asset.currency },
-    { label: '平均成本', value: `${nativeSymbol}${formatQuantity(asset.avg_cost)}`, helper: '买入单位成本' },
-    {
-      label: '最新价格',
-      value: `${nativeSymbol}${formatQuantity(asset.current_price)}`,
-      helper: asset.quote_source || '手动估值',
-    },
-    { label: '汇率', value: formatQuantity(asset.exchange_rate_to_cny), helper: `${asset.currency}/CNY` },
-    {
-      label: '浮盈/浮亏',
-      value: `${gainCny >= 0 ? '+' : ''}${formatCny(gainCny, 0)}`,
-      helper: `${nativeSymbol}${formatQuantity(gainNative)} · ${formatPercent(gainPct)}`,
-      className: gainClass,
-    },
-  ];
+  const facts = asset.type === 'cash'
+    ? [
+      { label: '现金余额', value: `${nativeSymbol}${formatQuantity(asset.quantity)}`, helper: asset.currency },
+      { label: '兑人民币汇率', value: formatQuantity(asset.exchange_rate_to_cny), helper: `${asset.currency}/CNY` },
+      { label: '折合人民币', value: formatCny(asset.current_value_cny), helper: '计入总资产' },
+    ]
+    : [
+      { label: '持有份额', value: formatQuantity(asset.quantity), helper: asset.currency },
+      { label: '平均成本', value: `${nativeSymbol}${formatQuantity(asset.avg_cost)}`, helper: '买入单位成本' },
+      {
+        label: '最新价格',
+        value: `${nativeSymbol}${formatQuantity(asset.current_price)}`,
+        helper: asset.quote_source || '手动估值',
+      },
+      { label: '汇率', value: formatQuantity(asset.exchange_rate_to_cny), helper: `${asset.currency}/CNY` },
+      {
+        label: asset.currency === 'CNY' ? '浮盈/浮亏' : '人民币总盈亏',
+        value: `${gainCny >= 0 ? '+' : ''}${formatCny(gainCny, 0)}`,
+        helper: asset.currency === 'CNY'
+          ? `${formatPercent(gainPct)}`
+          : `含汇率 · ${formatPercent(gainPct)}`,
+        className: gainClass,
+      },
+      ...(asset.currency === 'CNY' ? [] : [{
+        label: '原币价格盈亏',
+        value: `${gainNative >= 0 ? '+' : ''}${nativeSymbol}${formatQuantity(gainNative)}`,
+        helper: `不含汇率 · ${formatPercent(nativeGainPct)}`,
+        className: gainNative > 0 ? 'text-red-600' : gainNative < 0 ? 'text-emerald-600' : 'text-ink-500',
+      }]),
+      {
+      label: '已实现/现金收益',
+      value: `${realizedGainCny >= 0 ? '+' : ''}${formatCny(realizedGainCny, 0)}`,
+      helper: `${nativeSymbol}${formatQuantity(realizedGainNative)}`,
+      className: realizedGainCny > 0
+        ? 'text-red-600'
+        : realizedGainCny < 0
+          ? 'text-emerald-600'
+          : 'text-ink-500',
+      },
+    ];
 
   return (
     <div className="overflow-hidden rounded-lg border border-ink-100 bg-white">
@@ -99,7 +127,7 @@ export function AssetInfo({ asset }: AssetInfoProps) {
         </div>
       </div>
 
-      <div className="grid border-t border-ink-100 sm:grid-cols-2 lg:grid-cols-5">
+      <div className={`grid border-t border-ink-100 sm:grid-cols-2 ${asset.type === 'cash' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
         {facts.map((item) => (
           <div
             key={item.label}
@@ -111,6 +139,12 @@ export function AssetInfo({ asset }: AssetInfoProps) {
           </div>
         ))}
       </div>
+
+      {asset.type !== 'cash' && asset.currency !== 'CNY' && (
+        <p className="border-t border-ink-100 bg-ink-50/60 px-5 py-3 text-xs text-ink-400">
+          原币价格盈亏只反映证券价格；人民币总盈亏使用每笔交易历史汇率计算成本，并按当前汇率估值。
+        </p>
+      )}
 
       {refreshError && <p className="border-t border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600">{refreshError}</p>}
     </div>

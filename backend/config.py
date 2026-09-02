@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     app_origin: str = "http://localhost:5173"
     session_cookie_name: str = "asset_session"
     session_days: int = 14
+    allow_open_registration: bool = True
     ai_api_key: str | None = None
     ai_base_url: str = "https://api.openai.com/v1"
     ai_model: str = "gpt-4.1-mini"

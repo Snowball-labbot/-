@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -18,7 +18,7 @@ class UserOut(ApiModel):
 class RegisterIn(ApiModel):
     email: EmailStr
     password: str = Field(min_length=8)
-    invite_code: str = Field(min_length=4)
+    invite_code: str | None = Field(default=None, min_length=4)
 
 
 class LoginIn(ApiModel):
@@ -52,6 +52,7 @@ class HoldingCreateIn(ApiModel):
     exchange_rate_to_cny: Decimal = Field(default=Decimal("1"), gt=0)
     trade_date: datetime | None = None
     note: str | None = None
+    flow_class: str = "opening_balance"
 
 
 class HoldingUpdateIn(ApiModel):
@@ -79,10 +80,14 @@ class HoldingOut(ApiModel):
     current_value: Decimal
     current_value_cny: Decimal
     exchange_rate_to_cny: Decimal
+    cost_basis_cny: Decimal
     price_updated_at: datetime | None
+    archived_at: datetime | None
     unrealized_gain_native: Decimal
     unrealized_gain_cny: Decimal
     unrealized_gain_pct: Decimal
+    realized_gain_native: Decimal
+    realized_gain_cny: Decimal
     created_at: datetime
     updated_at: datetime
 
@@ -117,8 +122,11 @@ class TransactionCreateIn(ApiModel):
     fee: Decimal = Field(default=Decimal("0"), ge=0)
     currency: str = Field(default="CNY", min_length=3, max_length=3)
     exchange_rate_to_cny: Decimal = Field(default=Decimal("1"), gt=0)
+    settle_cash: bool = False
+    cash_holding_id: str | None = None
     trade_date: datetime | None = None
     note: str | None = None
+    flow_class: str = "internal_trade"
 
 
 class TransactionOut(ApiModel):
@@ -131,8 +139,48 @@ class TransactionOut(ApiModel):
     fee: Decimal
     currency: str
     exchange_rate_to_cny: Decimal
+    operation_id: str | None
+    related_holding_id: str | None
+    flow_class: str
+    realized_gain_native: Decimal
+    realized_gain_cny: Decimal
     note: str | None
     created_at: datetime
+
+
+class CashTransferCreateIn(ApiModel):
+    source_holding_id: str
+    destination_holding_id: str
+    source_amount: Decimal = Field(gt=0)
+    destination_amount: Decimal = Field(gt=0)
+    source_exchange_rate_to_cny: Decimal = Field(gt=0)
+    destination_exchange_rate_to_cny: Decimal = Field(gt=0)
+    fee: Decimal = Field(default=Decimal("0"), ge=0)
+    trade_date: datetime | None = None
+    note: str | None = None
+
+
+class CashTransferOut(ApiModel):
+    id: str
+    source_holding_id: str
+    destination_holding_id: str
+    source_amount: Decimal
+    destination_amount: Decimal
+    source_currency: str
+    destination_currency: str
+    source_exchange_rate_to_cny: Decimal
+    destination_exchange_rate_to_cny: Decimal
+    fee: Decimal
+    trade_date: datetime
+    note: str | None
+    created_at: datetime
+
+
+class FxRateOut(ApiModel):
+    currency: str
+    exchange_rate_to_cny: Decimal
+    quote_source: str
+    updated_at: datetime
 
 
 class SummarySlice(ApiModel):
@@ -145,12 +193,84 @@ class SummaryOut(ApiModel):
     total_value_cny: Decimal
     total_cost_cny: Decimal
     unrealized_gain_cny: Decimal
+    realized_gain_cny: Decimal
+    total_gain_cny: Decimal
     slices: list[SummarySlice]
 
 
 class TrendPoint(ApiModel):
     date: str
     value_cny: Decimal
+
+
+class ExposureWeightIn(ApiModel):
+    profile_code: str
+    weight_pct: Decimal = Field(gt=0, le=100)
+
+
+class ExposureMappingIn(ApiModel):
+    items: list[ExposureWeightIn] = Field(min_length=1)
+
+
+class ExposureProfileOut(ApiModel):
+    code: str
+    name: str
+    asset_class_weights: dict[str, Any]
+    region_weights: dict[str, Any]
+    sector_weights: dict[str, Any]
+    source: str
+    as_of_date: date
+
+
+class PortfolioPerspectiveOut(ApiModel):
+    total_value_cny: Decimal
+    unclassified_pct: Decimal
+    source: str
+    as_of_date: date
+    views: dict[str, list[dict[str, Any]]]
+
+
+class FamilySafetyIn(ApiModel):
+    term_deposits_cny: Decimal = Field(default=Decimal("0"), ge=0)
+    cash_funds_cny: Decimal = Field(default=Decimal("0"), ge=0)
+    note: str | None = None
+    as_of_date: date | None = None
+    next_review_date: date | None = None
+
+
+class FamilySafetyOut(ApiModel):
+    id: str
+    term_deposits_cny: Decimal
+    cash_funds_cny: Decimal
+    note: str | None
+    as_of_date: date
+    next_review_date: date
+    created_at: datetime
+
+
+class FamilySafetyItemIn(ApiModel):
+    category: str = Field(pattern="^(term_deposit|cash_fund|cash)$")
+    institution: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=255)
+    amount_cny: Decimal = Field(default=Decimal("0"), ge=0)
+    purpose: str = Field(min_length=1, max_length=500)
+    liquidity: str = Field(default="low", pattern="^(high|medium|low)$")
+    annual_rate_pct: Decimal | None = Field(default=None, ge=0, le=100)
+    term_label: str | None = Field(default=None, max_length=32)
+    start_date: date | None = None
+    maturity_date: date | None = None
+    expected_maturity: str | None = Field(default=None, max_length=64)
+    account_hint: str | None = Field(default=None, max_length=64)
+    rollover_instruction: str | None = Field(default=None, max_length=128)
+    status: str = Field(default="active", pattern="^(active|pending_confirmation|matured)$")
+    source_note: str | None = None
+    sort_order: int = 0
+
+
+class FamilySafetyItemOut(FamilySafetyItemIn):
+    id: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class PortfolioBackupTransaction(ApiModel):
@@ -161,10 +281,16 @@ class PortfolioBackupTransaction(ApiModel):
     fee: Decimal = Field(default=Decimal("0"), ge=0)
     currency: str = Field(default="CNY", min_length=3, max_length=3)
     exchange_rate_to_cny: Decimal = Field(default=Decimal("1"), gt=0)
+    operation_id: str | None = None
+    related_holding_id: str | None = None
+    realized_gain_native: Decimal = Decimal("0")
+    realized_gain_cny: Decimal = Decimal("0")
     note: str | None = None
+    flow_class: str = "internal_trade"
 
 
 class PortfolioBackupHolding(ApiModel):
+    backup_id: str | None = None
     type: str
     name: str = Field(min_length=1)
     group: str | None = None
@@ -178,11 +304,15 @@ class PortfolioBackupHolding(ApiModel):
     current_price: Decimal = Field(default=Decimal("0"), ge=0)
     exchange_rate_to_cny: Decimal = Field(default=Decimal("1"), gt=0)
     price_updated_at: datetime | None = None
+    archived_at: datetime | None = None
+    source_backup_id: str | None = None
+    exposures: list[ExposureWeightIn] = Field(default_factory=list)
     transactions: list[PortfolioBackupTransaction] = Field(default_factory=list)
 
 
 class PortfolioBackupOut(ApiModel):
-    schema_version: str = "portfolio_backup_v1"
+    schema_version: str = "portfolio_backup_v3"
+    backup_key: str
     exported_at: datetime
     base_currency: str = "CNY"
     holdings: list[PortfolioBackupHolding]
@@ -191,10 +321,21 @@ class PortfolioBackupOut(ApiModel):
 class PortfolioBackupImportIn(ApiModel):
     schema_version: str | None = None
     holdings: list[PortfolioBackupHolding]
+    backup_key: str | None = None
+    skip_duplicates: bool = True
 
 
 class PortfolioBackupImportOut(ApiModel):
     imported: int
+    skipped: int = 0
+    batch_id: str | None = None
+
+
+class PortfolioBackupPreviewOut(ApiModel):
+    total: int
+    new_count: int
+    duplicate_count: int
+    duplicates: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class StrategyAdviceIn(ApiModel):
@@ -240,3 +381,297 @@ class ImportExtractedHoldingsIn(ApiModel):
 class ImportExtractedHoldingsOut(ApiModel):
     imported: int
     holdings: list[HoldingOut]
+
+
+class WatchlistCreateIn(ApiModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    name: str = Field(min_length=1, max_length=255)
+    market: str = Field(default="US", min_length=2, max_length=16)
+    cik: str | None = None
+    industry: str | None = None
+    ir_url: str | None = None
+    stance: str = "research"
+    thesis: str | None = None
+    fair_value_low: Decimal | None = Field(default=None, ge=0)
+    fair_value_high: Decimal | None = Field(default=None, ge=0)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    catalysts: str | None = None
+    risks: str | None = None
+    invalidation: str | None = None
+    next_review_at: datetime | None = None
+
+
+class WatchlistUpdateIn(ApiModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    cik: str | None = None
+    industry: str | None = None
+    ir_url: str | None = None
+    stance: str | None = None
+    thesis: str | None = None
+    fair_value_low: Decimal | None = Field(default=None, ge=0)
+    fair_value_high: Decimal | None = Field(default=None, ge=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    catalysts: str | None = None
+    risks: str | None = None
+    invalidation: str | None = None
+    next_review_at: datetime | None = None
+
+
+class WatchlistOut(ApiModel):
+    id: str
+    symbol: str
+    name: str
+    market: str
+    cik: str | None
+    industry: str | None
+    ir_url: str | None
+    stance: str
+    thesis: str | None
+    fair_value_low: Decimal | None
+    fair_value_high: Decimal | None
+    currency: str
+    catalysts: str | None
+    risks: str | None
+    invalidation: str | None
+    next_review_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ResearchFolderCreateIn(ApiModel):
+    name: str = Field(min_length=1, max_length=255)
+    parent_id: str | None = None
+    kind: str = "custom"
+    description: str | None = None
+    sort_order: int = 0
+
+
+class ResearchFolderOut(ApiModel):
+    id: str
+    parent_id: str | None
+    name: str
+    kind: str
+    description: str | None
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ResearchDocumentCreateIn(ApiModel):
+    folder_id: str | None = None
+    document_type: str = "note"
+    title: str = Field(min_length=1, max_length=255)
+    summary: str | None = None
+    content_markdown: str = ""
+    tags: list[str] = Field(default_factory=list)
+    source_url: str | None = None
+    as_of_date: date | None = None
+    status: str = "draft"
+
+
+class ResearchDocumentUpdateIn(ApiModel):
+    folder_id: str | None = None
+    document_type: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    summary: str | None = None
+    content_markdown: str | None = None
+    tags: list[str] | None = None
+    source_url: str | None = None
+    as_of_date: date | None = None
+    status: str | None = None
+
+
+class ResearchDocumentOut(ApiModel):
+    id: str
+    folder_id: str | None
+    document_type: str
+    title: str
+    summary: str | None
+    content_markdown: str
+    tags: list[str]
+    source_url: str | None
+    as_of_date: date | None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ResearchBriefImportIn(ApiModel):
+    title: str = Field(min_length=1, max_length=255)
+    as_of_date: date
+    summary: str | None = None
+    content_markdown: str = Field(min_length=1)
+    tags: list[str] = Field(default_factory=list)
+    source_url: str | None = None
+
+
+class ResearchEventOut(ApiModel):
+    id: str
+    event_key: str
+    event_type: str
+    title: str
+    description: str | None
+    country: str | None
+    ticker: str | None
+    company_name: str | None
+    indicator_code: str | None
+    reference_period: str | None
+    scheduled_at: datetime | None
+    time_precision: str
+    status: str
+    importance: int
+    source: str
+    source_url: str | None
+    actual: str | None
+    consensus: str | None
+    previous: str | None
+    unit: str | None
+    published_at: datetime | None
+    updated_at: datetime
+
+
+class ResearchNewsOut(ApiModel):
+    id: str
+    news_key: str
+    title: str
+    summary: str | None
+    source: str
+    source_domain: str | None
+    source_url: str
+    published_at: datetime
+    ticker: str | None
+    topic: str
+    language: str
+    image_url: str | None
+
+
+class DecisionQueueItemOut(ApiModel):
+    id: str
+    kind: str
+    priority: int = Field(ge=1, le=3)
+    title: str
+    description: str | None = None
+    due_at: datetime | None = None
+    symbol: str | None = None
+    target_view: str
+    source_url: str | None = None
+
+
+class CompanyCoverageOut(ApiModel):
+    symbol: str
+    name: str
+    market: str
+    currency: str
+    industry: str | None = None
+    stance: str
+    thesis: str | None = None
+    next_review_at: datetime | None = None
+    in_portfolio: bool
+    holding_value_cny: Decimal = Decimal("0")
+    portfolio_weight_pct: Decimal = Decimal("0")
+    watchlist_id: str | None = None
+
+
+class CompanyFundamentalsOut(ApiModel):
+    symbol: str
+    name: str
+    market: str
+    currency: str
+    exchange: str | None = None
+    instrument_type: str | None = None
+    sector: str | None = None
+    industry: str | None = None
+    current_price: Decimal | None = None
+    market_cap: Decimal | None = None
+    trailing_pe: Decimal | None = None
+    forward_pe: Decimal | None = None
+    price_to_sales: Decimal | None = None
+    price_to_book: Decimal | None = None
+    revenue_growth_pct: Decimal | None = None
+    earnings_growth_pct: Decimal | None = None
+    gross_margin_pct: Decimal | None = None
+    operating_margin_pct: Decimal | None = None
+    profit_margin_pct: Decimal | None = None
+    return_on_equity_pct: Decimal | None = None
+    debt_to_equity: Decimal | None = None
+    free_cash_flow: Decimal | None = None
+    dividend_yield_pct: Decimal | None = None
+    beta: Decimal | None = None
+    fifty_two_week_low: Decimal | None = None
+    fifty_two_week_high: Decimal | None = None
+    target_mean_price: Decimal | None = None
+    analyst_count: int | None = None
+    as_of: datetime
+    source: str
+
+
+class CompanyDossierOut(ApiModel):
+    folder: ResearchFolderOut
+    document: ResearchDocumentOut
+
+
+class QuantExperimentCreateIn(ApiModel):
+    name: str = Field(min_length=1, max_length=255)
+    status: str = Field(default="idea", max_length=32)
+    hypothesis: str = ""
+    universe: list[str] = Field(default_factory=list)
+    benchmark: str | None = Field(default=None, max_length=64)
+    start_date: date | None = None
+    end_date: date | None = None
+    rebalance: str | None = Field(default=None, max_length=64)
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    notes: str = ""
+
+
+class QuantExperimentUpdateIn(ApiModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    status: str | None = Field(default=None, max_length=32)
+    hypothesis: str | None = None
+    universe: list[str] | None = None
+    benchmark: str | None = Field(default=None, max_length=64)
+    start_date: date | None = None
+    end_date: date | None = None
+    rebalance: str | None = Field(default=None, max_length=64)
+    parameters: dict[str, Any] | None = None
+    metrics: dict[str, Any] | None = None
+    notes: str | None = None
+
+
+class QuantExperimentOut(ApiModel):
+    id: str
+    name: str
+    status: str
+    hypothesis: str
+    universe: list[str]
+    benchmark: str | None
+    start_date: date | None
+    end_date: date | None
+    rebalance: str | None
+    parameters: dict[str, Any]
+    metrics: dict[str, Any]
+    notes: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class MarketScoreOut(ApiModel):
+    symbol: str
+    label: str
+    score: Decimal
+    valuation_score: Decimal
+    trend_score: Decimal
+    macro_score: Decimal
+    volatility_score: Decimal
+    as_of_date: date
+    data: dict[str, Any]
+
+
+class SocialMentionOut(ApiModel):
+    rank: int
+    ticker: str
+    name: str
+    mentions: int
+    upvotes: int
+    rank_24h_ago: int | None = None
+    mentions_24h_ago: int | None = None
